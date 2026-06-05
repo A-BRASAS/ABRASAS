@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>A-BRASAS · Amigos y Parrilla</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ng:#0A0A0A;--ng2:#141414;--ng3:#1E1E1E;--ng4:#282828;--ng5:#303030;
+  --cb:#C17F4E;--cbo:#8A5632;--nr:#E85F1A;--rj:#D64537;
+  --tx:#F0EBE3;--tx2:#C9C9C9;--tx3:#888;
+  --bd:rgba(193,127,78,.2);--bd2:rgba(193,127,78,.45);
+  --ok:#2a9d6e;--warn:#F28C28;
+  --r:8px;--r2:12px;--r3:16px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Lato',sans-serif;background:var(--ng);color:var(--tx);min-height:100vh;overflow-x:hidden;}
+input,select,button,textarea{font-family:inherit;}
+
+/* SCREENS */
+.screen{display:none;min-height:100vh;flex-direction:column;}
+.screen.active{display:flex;}
+
+/* TOPBAR */
+.topbar{background:var(--ng2);border-bottom:1px solid var(--bd);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:8px;}
+.tb-logo{display:flex;align-items:center;gap:10px;min-width:0;}
+.tb-flame{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--cbo),var(--nr));display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.tb-name{font-family:'Oswald',sans-serif;font-size:16px;color:var(--nr);letter-spacing:2px;}
+.tb-sub{font-size:10px;color:var(--tx3);}
+.tb-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.ev-pill{display:flex;align-items:center;gap:5px;background:var(--ng3);border:1px solid var(--bd);border-radius:20px;padding:5px 11px;font-size:11px;color:var(--tx2);cursor:pointer;max-width:160px;}
+.ev-pill:hover{border-color:var(--cb);}
+.ev-dot{width:6px;height:6px;border-radius:50%;background:var(--nr);flex-shrink:0;}
+.ev-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--ok);transition:background .3s;}
+.sdot.sync{background:var(--warn);animation:blink 1s infinite;}
+.sdot.off{background:#555;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* NAVBAR */
+.navbar{background:var(--ng2);border-bottom:1px solid var(--bd);display:flex;overflow-x:auto;scrollbar-width:none;}
+.ntab{padding:13px 16px;font-size:12px;color:var(--tx3);border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer;background:none;border-top:none;border-left:none;border-right:none;transition:all .2s;letter-spacing:.3px;}
+.ntab:hover{color:var(--cb);}
+.ntab.active{color:var(--nr);border-bottom-color:var(--nr);}
+
+/* CONTENT */
+.content{flex:1;padding:18px;overflow-y:auto;max-width:940px;width:100%;margin:0 auto;}
+.page{display:none;}
+.page.active{display:block;}
+
+/* SECTION TITLE */
+.sec{font-family:'Oswald',sans-serif;font-size:20px;color:var(--nr);letter-spacing:2px;margin-bottom:18px;}
+
+/* CARD */
+.card{background:var(--ng2);border:1px solid var(--bd);border-radius:var(--r2);padding:18px;margin-bottom:14px;}
+.card-hd{font-family:'Oswald',sans-serif;font-size:14px;color:var(--cb);letter-spacing:.8px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.divider{border:none;border-top:1px solid var(--bd);margin:14px 0;}
+
+/* STATS */
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px;}
+.stat{background:var(--ng3);border:1px solid var(--bd);border-radius:var(--r);padding:14px;text-align:center;}
+.sn{font-family:'Oswald',sans-serif;font-size:28px;color:var(--nr);}
+.sn.sm{font-size:18px;}
+.sl{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;margin-top:3px;}
+
+/* PROGRESS */
+.pbar{height:6px;border-radius:3px;background:var(--ng4);overflow:hidden;margin-top:6px;}
+.pfill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--cbo),var(--nr));transition:width .5s;}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;}
+.b-ok{background:rgba(42,157,110,.18);color:#4fc99e;border:1px solid rgba(42,157,110,.3);}
+.b-nr{background:rgba(232,95,26,.18);color:var(--nr);border:1px solid rgba(232,95,26,.3);}
+.b-cb{background:rgba(193,127,78,.18);color:var(--cb);border:1px solid rgba(193,127,78,.3);}
+.b-gy{background:rgba(154,154,154,.15);color:#bbb;border:1px solid rgba(154,154,154,.25);}
+.b-warn{background:rgba(242,140,40,.18);color:var(--warn);border:1px solid rgba(242,140,40,.3);}
+.b-rd{background:rgba(214,69,55,.18);color:#f07c72;border:1px solid rgba(214,69,55,.3);}
+
+/* BUTTONS */
+.btn{padding:9px 18px;border-radius:var(--r);font-size:13px;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:6px;transition:all .2s;font-weight:700;line-height:1;}
+.bp{background:var(--nr);color:#fff;} .bp:hover{background:var(--rj);}
+.bs{background:var(--ng4);color:var(--tx2);border:1px solid var(--bd);} .bs:hover{border-color:var(--cb);color:var(--cb);}
+.bok{background:rgba(42,157,110,.2);color:#4fc99e;border:1px solid rgba(42,157,110,.3);}
+.bd{background:rgba(214,69,55,.18);color:#f07c72;border:1px solid rgba(214,69,55,.3);}
+.bw{background:rgba(242,140,40,.18);color:var(--warn);border:1px solid rgba(242,140,40,.3);}
+.bsm{padding:5px 12px;font-size:11px;border-radius:5px;}
+.bfw{width:100%;justify-content:center;}
+.bfire{background:linear-gradient(135deg,var(--nr),var(--rj));color:#fff;font-family:'Oswald',sans-serif;font-size:16px;letter-spacing:1px;padding:13px 20px;}
+
+/* FORMS */
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+.fg label{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;}
+.fi{padding:10px 13px;border-radius:var(--r);background:var(--ng3);border:1px solid var(--bd);color:var(--tx);font-size:14px;outline:none;width:100%;}
+.fi:focus{border-color:var(--cb);}
+select.fi option{background:var(--ng3);}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+/* ALERT */
+.alert{padding:10px 14px;border-radius:var(--r);font-size:13px;margin-bottom:12px;display:flex;align-items:flex-start;gap:8px;line-height:1.5;}
+.ali{background:rgba(193,127,78,.12);border:1px solid var(--bd);color:var(--cb);}
+.alok{background:rgba(42,157,110,.12);border:1px solid rgba(42,157,110,.3);color:#4fc99e;}
+.alw{background:rgba(242,140,40,.12);border:1px solid rgba(242,140,40,.3);color:var(--warn);}
+.ale{background:rgba(214,69,55,.12);border:1px solid rgba(214,69,55,.3);color:#f07c72;}
+
+/* QTY */
+.qc{display:flex;align-items:center;gap:8px;}
+.qb{width:32px;height:32px;border-radius:6px;background:var(--ng4);border:1px solid var(--bd);color:var(--cb);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;}
+.qb:hover{border-color:var(--nr);color:var(--nr);}
+.qn{font-family:'Oswald',sans-serif;font-size:20px;min-width:28px;text-align:center;color:var(--tx);}
+
+/* MESA CARD */
+.mcard{background:var(--ng3);border:1px solid var(--bd);border-radius:var(--r);padding:13px;margin-bottom:8px;transition:border-color .2s;}
+.mcard:hover{border-color:var(--cb);}
+.mcard-top{display:flex;align-items:flex-start;gap:10px;}
+.mesa-b{background:rgba(138,86,50,.3);border:1px solid var(--cbo);color:var(--cb);font-family:'Oswald',sans-serif;padding:5px 10px;border-radius:6px;font-size:15px;min-width:50px;text-align:center;flex-shrink:0;}
+.mcard-info{flex:1;min-width:0;}
+.mcard-name{font-size:15px;font-weight:700;color:var(--tx);}
+.mcard-sub{font-size:12px;color:var(--tx3);margin-top:2px;}
+.mcard-obs{font-size:12px;color:var(--cb);font-style:italic;margin-top:2px;}
+.mcard-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.mcard-total{font-size:13px;color:var(--tx3);margin-top:4px;}
+.mcard-acts{display:flex;gap:6px;flex-shrink:0;}
+
+/* PAYMENT */
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.popt{padding:16px;border-radius:var(--r);border:2px solid var(--bd);cursor:pointer;text-align:center;transition:all .2s;}
+.popt:hover,.popt.sel{border-color:var(--nr);background:rgba(232,95,26,.07);}
+.picon{font-size:28px;margin-bottom:6px;}
+.plbl{font-size:13px;color:var(--tx2);font-weight:700;}
+
+/* CUENTA */
+.cr{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:var(--tx2);border-bottom:1px solid rgba(255,255,255,.04);}
+.ct{display:flex;justify-content:space-between;padding:12px 0;font-family:'Oswald',sans-serif;font-size:22px;color:var(--nr);border-top:1px solid var(--bd);margin-top:6px;}
+
+/* TABLE */
+.twrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{padding:9px 12px;text-align:left;color:var(--tx3);font-size:11px;letter-spacing:.7px;text-transform:uppercase;border-bottom:1px solid var(--bd);}
+td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--tx2);vertical-align:middle;}
+tr:hover td{background:var(--ng3);}
+
+/* MODAL */
+.mov{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:flex-end;justify-content:center;z-index:200;padding:0;}
+.mov.open{display:flex;}
+.modal{background:var(--ng2);border:1px solid var(--bd2);border-radius:var(--r3) var(--r3) 0 0;width:100%;max-width:580px;max-height:93vh;overflow-y:auto;padding:22px 20px;animation:sU .25s ease;}
+@keyframes sU{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.mhd{font-family:'Oswald',sans-serif;font-size:20px;color:var(--nr);letter-spacing:1.5px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;}
+.mx{background:none;border:none;color:var(--tx3);font-size:20px;cursor:pointer;padding:4px;}
+.mx:hover{color:var(--rj);}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:16px;z-index:300;background:var(--ng2);border:1px solid var(--bd2);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:8px;font-size:13px;transform:translateY(70px);opacity:0;transition:all .3s;max-width:300px;box-shadow:0 4px 24px rgba(0,0,0,.6);}
+.toast.show{transform:translateY(0);opacity:1;}
+.tdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* LOGIN */
+#s-login{background:radial-gradient(ellipse at 50% 25%,#1f0800 0%,var(--ng) 65%);justify-content:center;align-items:center;padding:20px;}
+.lcard{background:var(--ng2);border:1px solid var(--bd);border-radius:var(--r3);padding:40px 32px;width:100%;max-width:360px;text-align:center;}
+.lbrand{font-family:'Oswald',sans-serif;font-size:32px;letter-spacing:4px;color:var(--nr);margin-bottom:4px;}
+.lsub{font-size:12px;color:var(--tx3);letter-spacing:2px;margin-bottom:28px;}
+.rgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;}
+.rbtn{padding:13px 8px;border-radius:var(--r);background:var(--ng3);border:2px solid var(--bd);color:var(--tx2);font-size:12px;cursor:pointer;transition:all .2s;text-align:center;}
+.rbtn:hover,.rbtn.sel{border-color:var(--nr);background:rgba(232,95,26,.09);color:var(--nr);}
+.ricon{font-size:22px;display:block;margin-bottom:4px;}
+
+/* RESERVA PÚBLICA */
+#s-res{background:linear-gradient(180deg,#1f0800 0%,#0A0A0A 40%);}
+.rwrap{max-width:500px;margin:0 auto;padding:30px 16px 50px;}
+.rhd{text-align:center;margin-bottom:24px;}
+.rbrand{font-family:'Oswald',sans-serif;font-size:36px;letter-spacing:5px;color:var(--nr);}
+.rsub{font-size:13px;color:var(--tx3);letter-spacing:3px;margin-bottom:6px;}
+.revnm{font-size:15px;color:var(--cb);font-weight:700;margin-top:8px;}
+.revfecha{font-size:13px;color:var(--tx3);margin-top:3px;}
+.rcard{background:var(--ng2);border:1px solid var(--bd);border-radius:var(--r3);padding:26px;}
+.plato-row{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--bd);gap:10px;}
+.plato-row:last-child{border-bottom:none;}
+.pnm{font-size:15px;font-weight:700;color:var(--tx);}
+.pdesc{font-size:12px;color:var(--tx3);margin-top:3px;line-height:1.5;}
+.pprice{font-size:14px;color:var(--nr);margin-top:5px;font-weight:700;}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:var(--ng);}
+::-webkit-scrollbar-thumb{background:var(--ng4);border-radius:3px;}
+
+@media(max-width:520px){
+  .fgrid{grid-template-columns:1fr;}
+  .pgrid{grid-template-columns:1fr;}
+  .sgrid{grid-template-columns:repeat(2,1fr);}
+  .lcard{padding:28px 18px;}
+  .rgrid{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"><div class="tdot" id="tdot"></div><span id="tmsg"></span></div>
+
+<!-- ═══════════════════════════════════
+     LOGIN
+═══════════════════════════════════ -->
+<div id="s-login" class="screen active">
+  <div class="lcard">
+    <div style="font-size:64px;margin-bottom:10px">🔥</div>
+    <div class="lbrand">A-BRASAS</div>
+    <div class="lsub">AMIGOS &amp; PARRILLA</div>
+    <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--tx2);margin-bottom:15px;letter-spacing:.5px">SELECCIONA TU ROL</div>
+    <div class="rgrid" id="rgrid">
+      <div class="rbtn" onclick="selRole('admin')"><span class="ricon">⚙️</span>Admin</div>
+      <div class="rbtn" onclick="selRole('logistica')"><span class="ricon">📦</span>Logística</div>
+      <div class="rbtn" onclick="selRole('anfitrion')"><span class="ricon">👋</span>Anfitrión</div>
+    </div>
+    <div class="fg"><label>Tu nombre</label><input class="fi" id="l-name" placeholder="Escribe tu nombre" autocomplete="name"/></div>
+    <div class="fg"><label>PIN</label><input class="fi" id="l-pin" type="password" placeholder="4 dígitos" maxlength="4"/></div>
+    <button class="btn bfire bfw" onclick="doLogin()">🔥 INGRESAR</button>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)">
+      <button class="btn bs bfw bsm" onclick="goRes()">📋 Ver formulario de reservas</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     RESERVA PÚBLICA
+═══════════════════════════════════ -->
+<div id="s-res" class="screen">
+  <div class="rwrap">
+    <div class="rhd">
+      <div style="font-size:60px;margin-bottom:8px">🔥</div>
+      <div class="rbrand">A-BRASAS</div>
+      <div class="rsub">AMIGOS &amp; PARRILLA</div>
+      <div class="revnm" id="res-evnm">Cargando...</div>
+      <div class="revfecha" id="res-evfecha"></div>
+    </div>
+    <div class="rcard" id="res-card">
+      <div style="font-family:'Oswald',sans-serif;font-size:18px;color:var(--cb);margin-bottom:18px;letter-spacing:1px">📋 RESERVA TU LUGAR</div>
+      <div class="fg"><label>Nombre completo</label><input class="fi" id="r-nom" placeholder="Tu nombre completo" autocomplete="name"/></div>
+      <div class="fg"><label>WhatsApp</label><input class="fi" id="r-tel" type="tel" placeholder="Ej: 300 123 4567"/></div>
+      <div class="fg"><label>¿Para cuántas personas?</label><input class="fi" id="r-pers" type="number" min="1" max="30" value="1"/></div>
+      <hr class="divider">
+      <div style="font-family:'Oswald',sans-serif;font-size:15px;color:var(--cb);margin-bottom:14px;letter-spacing:.8px">SELECCIONA TU(S) PLATO(S)</div>
+      <div id="res-platos"></div>
+      <div id="res-total-box" style="margin-top:14px;padding:12px 16px;background:var(--ng3);border-radius:var(--r);display:none">
+        <div style="display:flex;justify-content:space-between;font-family:'Oswald',sans-serif;font-size:20px;color:var(--nr)">
+          <span>TOTAL A PAGAR</span><span id="res-tv">$0</span>
+        </div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:4px">Pago el día del evento</div>
+      </div>
+      <button class="btn bfire bfw" style="margin-top:18px" onclick="submitRes()">CONFIRMAR RESERVA 🔥</button>
+      <p style="text-align:center;font-size:12px;color:var(--tx3);margin-top:12px;line-height:1.6">Sin pago anticipado.<br>Tu lugar queda apartado y pagas el día del evento.</p>
+    </div>
+    <div style="text-align:center;margin-top:16px">
+      <button class="btn bs bsm" onclick="showS('s-login')">← Volver</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     APP PRINCIPAL
+═══════════════════════════════════ -->
+<div id="s-app" class="screen">
+  <div class="topbar">
+    <div class="tb-logo">
+      <div class="tb-flame">🔥</div>
+      <div>
+        <div class="tb-name">A-BRASAS</div>
+        <div class="tb-sub" id="top-rol">—</div>
+      </div>
+    </div>
+    <div class="tb-right">
+      <div class="ev-pill" onclick="showMEvList()">
+        <div class="ev-dot"></div>
+        <span class="ev-nm" id="top-ev">Sin evento</span>
+      </div>
+      <div class="sdot" id="sdot" title="Sincronización"></div>
+      <button class="btn bs bsm" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+  <div class="navbar" id="navbar"></div>
+  <div class="content">
+
+    <!-- PANEL -->
+    <div id="p-dash" class="page">
+      <div class="sec">🔥 PANEL PRINCIPAL</div>
+      <div class="sgrid" id="dash-stats"></div>
+      <div id="dash-body"></div>
+    </div>
+
+    <!-- REGISTRO ANFITRIÓN -->
+    <div id="p-reg" class="page">
+      <div class="sec">👋 REGISTRO</div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn bp" onclick="openRegM()">+ Registrar comensal</button>
+        <input class="fi" style="flex:1;min-width:180px" id="reg-q" placeholder="🔍 Buscar por nombre o mesa..." oninput="renderReg()">
+      </div>
+      <div id="reg-list"></div>
+    </div>
+
+    <!-- RESERVAS -->
+    <div id="p-reservas" class="page">
+      <div class="sec">📋 RESERVAS</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn bs bsm" onclick="setRF('todas')">Todas</button>
+        <button class="btn bs bsm" onclick="setRF('pendiente')">⏳ Sin confirmar</button>
+        <button class="btn bs bsm" onclick="setRF('confirmada')">✅ Confirmadas</button>
+        <button class="btn bs bsm" style="margin-left:auto" onclick="syncNow()">🔄 Actualizar</button>
+      </div>
+      <div id="res-list"></div>
+    </div>
+
+    <!-- MESAS (ANFITRIÓN — cuentas por mesa) -->
+    <div id="p-mesas" class="page">
+      <div class="sec">🪑 MESAS</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="btn bs bsm" onclick="setMF('abiertas')">Abiertas</button>
+        <button class="btn bs bsm" onclick="setMF('cerradas')">Cerradas</button>
+        <button class="btn bs bsm" onclick="setMF('todas')">Todas</button>
+      </div>
+      <div id="mesas-list"></div>
+    </div>
+
+    <!-- LOGÍSTICA -->
+    <div id="p-log" class="page">
+      <div class="sec">📦 LOGÍSTICA</div>
+      <button class="btn bs bsm" style="margin-bottom:14px" onclick="syncNow()">🔄 Actualizar</button>
+      <div class="sgrid" id="log-stats"></div>
+      <div id="log-body"></div>
+    </div>
+
+    <!-- ADMIN EVENTOS -->
+    <div id="p-evs" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <div class="sec" style="margin:0">📅 EVENTOS</div>
+        <button class="btn bp" onclick="openEvM()">+ Nuevo</button>
+      </div>
+      <div id="ev-list"></div>
+    </div>
+
+    <!-- ADMIN MENÚ -->
+    <div id="p-menu" class="page">
+      <div class="sec">🥩 MENÚ</div>
+      <div id="menu-ed"></div>
+    </div>
+
+    <!-- ADMIN CONFIG -->
+    <div id="p-cfg" class="page">
+      <div class="sec">⚙️ CONFIGURACIÓN</div>
+      <div id="cfg-body"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ MODALES ═══════════════ -->
+
+<!-- Registrar comensal in situ -->
+<div class="mov" id="m-reg">
+  <div class="modal">
+    <div class="mhd">👋 NUEVO COMENSAL <button class="mx" onclick="closeM('m-reg')">✕</button></div>
+    <div class="fgrid">
+      <div class="fg"><label>Nombre completo</label><input class="fi" id="mr-nom" placeholder="Nombre"/></div>
+      <div class="fg"><label>Mesa #</label><input class="fi" id="mr-mesa" type="number" min="1" placeholder="Ej: 5"/></div>
+    </div>
+    <div class="fg"><label>WhatsApp (opcional)</label><input class="fi" id="mr-tel" type="tel" placeholder="300 000 0000"/></div>
+    <hr class="divider">
+    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Rituales — elige y cantidad</div>
+    <div id="mr-rits"></div>
+    <div class="fg" style="margin-top:8px"><label>Observaciones / Término de la carne</label>
+      <input class="fi" id="mr-obs" placeholder="Ej: Bien cocida, sin sal, vegetariano..."/></div>
+    <hr class="divider">
+    <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Forma de pago</div>
+    <div class="pgrid" id="mr-pay"></div>
+    <div id="mr-sub" style="text-align:right;font-family:'Oswald',sans-serif;font-size:17px;color:var(--nr);margin:12px 0"></div>
+    <button class="btn bfire bfw" onclick="saveReg()">✅ CONFIRMAR REGISTRO</button>
+  </div>
+</div>
+
+<!-- Confirmar reserva (llegada) -->
+<div class="mov" id="m-confirm">
+  <div class="modal">
+    <div class="mhd">✅ CONFIRMAR LLEGADA <button class="mx" onclick="closeM('m-confirm')">✕</button></div>
+    <div id="mc-info" style="background:var(--ng3);border-radius:var(--r);padding:14px;margin-bottom:16px"></div>
+    <div class="fgrid">
+      <div class="fg"><label>Mesa # asignada</label><input class="fi" id="mc-mesa" type="number" min="1" placeholder="Ej: 5"/></div>
+      <div class="fg"><label>Forma de pago</label>
+        <select class="fi" id="mc-pago">
+          <option value="">Selecciona...</option>
+          <option value="efectivo">💵 Efectivo</option>
+          <option value="transferencia">📲 Transferencia</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg"><label>Observaciones / Término de la carne</label>
+      <input class="fi" id="mc-obs" placeholder="Ej: Bien cocida, sin sal..."/></div>
+    <button class="btn bfire bfw" onclick="confirmarLlegada()">✅ CONFIRMAR Y ASIGNAR MESA</button>
+  </div>
+</div>
+
+<!-- Ver cuenta de mesa / adicionales -->
+<div class="mov" id="m-cuenta">
+  <div class="modal">
+    <div class="mhd" id="mc2-titulo">🪑 MESA — <button class="mx" onclick="closeM('m-cuenta')">✕</button></div>
+    <div id="mc2-rituales" style="margin-bottom:10px"></div>
+    <hr class="divider">
+    <div style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--cb);margin-bottom:10px;letter-spacing:.8px">ADICIONALES</div>
+    <div id="mc2-adics"></div>
+    <hr class="divider">
+    <div id="mc2-total"></div>
+    <div id="mc2-pago-sel" style="margin-top:14px;display:none">
+      <div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Confirmar forma de pago al cerrar</div>
+      <div class="pgrid" id="mc2-pay"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px" id="mc2-btns"></div>
+  </div>
+</div>
+
+<!-- Nuevo evento -->
+<div class="mov" id="m-ev">
+  <div class="modal">
+    <div class="mhd">📅 NUEVO EVENTO <button class="mx" onclick="closeM('m-ev')">✕</button></div>
+    <div class="fgrid">
+      <div class="fg"><label>Nombre del evento</label><input class="fi" id="ev-nom" placeholder="Parrilla Laureles #12"/></div>
+      <div class="fg"><label>Fecha</label><input class="fi" id="ev-fecha" type="date"/></div>
+    </div>
+    <div class="fg"><label>Lugar / Dirección</label><input class="fi" id="ev-lugar" placeholder="Dirección"/></div>
+    <div class="fgrid">
+      <div class="fg"><label>Cupos totales</label><input class="fi" id="ev-cupos" type="number" value="90"/></div>
+      <div class="fg"><label>% cupos en sitio</label><input class="fi" id="ev-sitio" type="number" value="10"/></div>
+    </div>
+    <br>
+    <button class="btn bfire bfw" onclick="saveEv()">✅ CREAR EVENTO</button>
+  </div>
+</div>
+
+<!-- Lista eventos -->
+<div class="mov" id="m-evlist">
+  <div class="modal">
+    <div class="mhd">📅 CAMBIAR EVENTO <button class="mx" onclick="closeM('m-evlist')">✕</button></div>
+    <div id="evlist-body"></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+//  ESTADO
+// ════════════════════════════════════════════════
+const S = {
+  role:null, user:null, evId:null,
+  eventos:[], mesas:[], reservas:[],
+  menu:{
+    rituales:[
+      {id:'r1',nombre:'RITUAL 1',principal:'Churrasco Angus',
+       entrada:'Ceviche de chicharrón',guarnicion:'Piña A-Brasas + Mazorca asada',
+       bebida:'Gaseosa o Agua',precio:45000},
+      {id:'r2',nombre:'RITUAL 2',principal:'Costilla al Barril BBQ',
+       entrada:'Ceviche de chicharrón',guarnicion:'Piña A-Brasas + Mazorca asada',
+       bebida:'Gaseosa o Agua',precio:45000}
+    ],
+    adicionales:[
+      {id:'a1',nombre:'Cerveza Nacional',precio:5000},
+      {id:'a2',nombre:'Gaseosa Mini',precio:3000},
+      {id:'a3',nombre:'Botella de Agua',precio:2000},
+      {id:'a4',nombre:'Ceviche de Chicharrón',precio:35000}
+    ]
+  },
+  pins:{admin:'1234',logistica:'5555',anfitrion:'1111'},
+  gasUrl:'',
+  _role:null, _regD:null, _confirmId:null, _cuentaId:null,
+  _resFilt:'todas', _mesaFilt:'abiertas'
+};
+
+const ROLES = {
+  admin:    {label:'Administrador',tabs:['dash','reservas','mesas','evs','menu','cfg']},
+  logistica:{label:'Logística',    tabs:['dash','reservas','log']},
+  anfitrion:{label:'Anfitrión',    tabs:['reg','reservas','mesas','dash']}
+};
+const TABS = {
+  dash:'🏠 Panel',reg:'👋 Registro',reservas:'📋 Reservas',
+  mesas:'🪑 Mesas',log:'📦 Logística',
+  evs:'📅 Eventos',menu:'🥩 Menú',cfg:'⚙️ Config'
+};
+
+// ════════════════════════════════════════════════
+//  PERSISTENCIA LOCAL
+// ════════════════════════════════════════════════
+function saveL(){
+  try{
+    localStorage.setItem('ab5',JSON.stringify({
+      gasUrl:S.gasUrl,evId:S.evId,
+      eventos:S.eventos,mesas:S.mesas,reservas:S.reservas,
+      menu:S.menu,pins:S.pins
+    }));
+  }catch(e){}
+}
+
+function loadL(){
+  try{
+    const d=JSON.parse(localStorage.getItem('ab5')||'{}');
+    if(d.gasUrl) S.gasUrl=d.gasUrl;
+    if(d.evId) S.evId=d.evId;
+    if(d.eventos) S.eventos=d.eventos;
+    if(d.mesas) S.mesas=d.mesas;
+    if(d.reservas) S.reservas=d.reservas;
+    if(d.menu) S.menu=d.menu;
+    if(d.pins) S.pins=d.pins;
+  }catch(e){}
+  if(!S.eventos.length){
+    const id='ev'+Date.now();
+    S.eventos=[{id,nombre:'Parrilla Laureles #1',
+      fecha:new Date().toISOString().slice(0,10),
+      lugar:'Medellín',cupos:90,sitio:10,activo:true}];
+    S.evId=id; saveL();
+  }
+  if(!S.evId) S.evId=(S.eventos.find(e=>e.activo)||S.eventos[0]).id;
+}
+
+// ════════════════════════════════════════════════
+//  SINCRONIZACIÓN — Google Apps Script
+// ════════════════════════════════════════════════
+let _syncT=null;
+
+async function gasCall(action,data={}){
+  if(!S.gasUrl) return null;
+  try{
+    const r=await fetch(S.gasUrl,{
+      method:'POST',
+      body:JSON.stringify({action,evId:S.evId,...data}),
+      headers:{'Content-Type':'text/plain'}
+    });
+    return JSON.parse(await r.text());
+  }catch(e){return null;}
+}
+
+async function syncNow(silent=false){
+  if(!S.gasUrl) return;
+  setSdot('sync');
+  const r=await gasCall('getAll');
+  if(r&&r.ok){
+    if(r.mesas)  S.mesas   = r.mesas.filter(m=>m.evId===S.evId);
+    if(r.reservas) S.reservas = r.reservas.filter(x=>x.evId===S.evId);
+    saveL();
+    if(!silent) toast('Datos actualizados ✓','ok');
+    refreshPage();
+  }
+  setSdot('ok');
+}
+
+function startSync(){
+  if(_syncT) clearInterval(_syncT);
+  if(S.gasUrl) _syncT=setInterval(()=>syncNow(true),15000);
+}
+
+async function pushMesa(m){
+  saveL();
+  if(S.gasUrl) await gasCall('saveMesa',{mesa:m});
+}
+
+async function pushReserva(r){
+  saveL();
+  if(S.gasUrl) await gasCall('saveReserva',{reserva:r});
+}
+
+function setSdot(s){
+  const d=document.getElementById('sdot');
+  if(!d) return;
+  d.className='sdot'+(s==='sync'?' sync':s==='off'?' off':'');
+}
+
+// ════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════
+const peso = n=>'$'+Number(n||0).toLocaleString('es-CO');
+const gid  = ()=>'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const getEv    = ()=>S.eventos.find(e=>e.id===S.evId);
+const getMesas = ()=>S.mesas.filter(m=>m.evId===S.evId);
+const getRes   = ()=>S.reservas.filter(r=>r.evId===S.evId);
+const getRit   = id=>S.menu.rituales.find(r=>r.id===id);
+const getAdic  = id=>S.menu.adicionales.find(a=>a.id===id);
+
+// Total rituales de una mesa
+function totalRituales(m){
+  return (m.rituales||[]).reduce((s,r)=>{
+    const rit=getRit(r.rid); return s+(rit?rit.precio*(r.qty||1):0);
+  },0);
+}
+
+// Total adicionales de una mesa
+function totalAdicionales(m){
+  return (m.adicionales||[]).reduce((s,a)=>{
+    const item=getAdic(a.id); return s+(item?item.precio*(a.qty||0):0);
+  },0);
+}
+
+// Total completo de una mesa
+function totalMesa(m){ return totalRituales(m)+totalAdicionales(m); }
+
+// Descripción de rituales
+function ritDesc(rituales){
+  return (rituales||[]).map(r=>{
+    const rit=getRit(r.rid); return rit?`${r.qty}× ${rit.nombre} (${rit.principal})`:'' ;
+  }).filter(Boolean).join(', ');
+}
+
+// Cupos ocupados = suma de rituales de mesas activas + reservas confirmadas
+function cuposOcupados(){
+  const desMesas = getMesas().filter(m=>m.activa)
+    .reduce((s,m)=>(m.rituales||[]).reduce((ss,r)=>ss+(r.qty||1),0)+s,0);
+  const desRes = getRes().filter(r=>r.estado==='confirmada')
+    .reduce((s,r)=>(r.rituales||[]).reduce((ss,x)=>ss+(x.qty||1),0)+s,0);
+  const desPend = getRes().filter(r=>r.estado==='pendiente')
+    .reduce((s,r)=>(r.rituales||[]).reduce((ss,x)=>ss+(x.qty||1),0)+s,0);
+  return {desMesas,desRes,desPend,total:desMesas+desRes};
+}
+
+// ════════════════════════════════════════════════
+//  SCREENS / NAV
+// ════════════════════════════════════════════════
+function showS(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showTab(t){
+  document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const tb=document.getElementById('tab-'+t); if(tb) tb.classList.add('active');
+  const pg=document.getElementById('p-'+t);   if(pg) pg.classList.add('active');
+  renderPg(t);
+}
+
+function renderPg(t){
+  if(t==='dash')     renderDash();
+  if(t==='reg')      renderReg();
+  if(t==='reservas') renderReservas();
+  if(t==='mesas')    renderMesas();
+  if(t==='log')      renderLog();
+  if(t==='evs')      renderEvs();
+  if(t==='menu')     renderMenu();
+  if(t==='cfg')      renderCfg();
+}
+
+function refreshPage(){
+  const p=document.querySelector('.page.active');
+  if(p) renderPg(p.id.replace('p-',''));
+}
+
+function buildNav(tabs){
+  document.getElementById('navbar').innerHTML=
+    tabs.map(t=>`<button class="ntab" id="tab-${t}" onclick="showTab('${t}')">${TABS[t]||t}</button>`).join('');
+}
+
+function updTopEv(){
+  const ev=getEv();
+  document.getElementById('top-ev').textContent=ev?ev.nombre:'Sin evento';
+}
+
+// ════════════════════════════════════════════════
+//  LOGIN / LOGOUT
+// ════════════════════════════════════════════════
+function selRole(role){
+  S._role=role;
+  document.querySelectorAll('.rbtn').forEach(x=>x.classList.remove('sel'));
+  document.querySelectorAll('.rbtn').forEach(x=>{
+    if(x.getAttribute('onclick')==="selRole('"+role+"')") x.classList.add('sel');
+  });
+}
+
+function doLogin(){
+  const role=S._role;
+  const name=document.getElementById('l-name').value.trim();
+  const pin =document.getElementById('l-pin').value;
+  if(!role){toast('Selecciona un rol','w');return;}
+  if(!name){toast('Ingresa tu nombre','w');return;}
+  if(pin!==(S.pins[role]||'')){toast('PIN incorrecto','e');return;}
+  S.role=role; S.user=name;
+  document.getElementById('top-rol').textContent=name+' · '+ROLES[role].label;
+  updTopEv();
+  buildNav(ROLES[role].tabs);
+  showS('s-app');
+  showTab(ROLES[role].tabs[0]);
+  if(S.gasUrl){syncNow(true);startSync();}
+}
+
+function doLogout(){
+  S.role=null; S.user=null;
+  if(_syncT){clearInterval(_syncT);_syncT=null;}
+  showS('s-login');
+}
+
+// ════════════════════════════════════════════════
+//  DASHBOARD
+// ════════════════════════════════════════════════
+function renderDash(){
+  const ev=getEv();
+  const cupos=ev?ev.cupos:90;
+  const {desMesas,desRes,desPend,total}=cuposOcupados();
+  const libres=Math.max(0,cupos-total);
+  const pct=cupos>0?Math.min(100,Math.round(total/cupos*100)):0;
+
+  // Caja
+  let cEf=0,cTr=0;
+  getMesas().filter(m=>m.activa||m.cerrada).forEach(m=>{
+    const t=totalMesa(m);
+    if(m.pago==='efectivo') cEf+=t; else if(m.pago==='transferencia') cTr+=t;
+  });
+  getRes().filter(r=>r.estado==='confirmada').forEach(r=>{
+    const t=totalRituales(r);
+    if(r.pago==='efectivo') cEf+=t; else if(r.pago==='transferencia') cTr+=t;
+  });
+
+  // Rituales
+  const byR={};
+  S.menu.rituales.forEach(r=>byR[r.id]=0);
+  getMesas().filter(m=>m.activa||m.cerrada).forEach(m=>
+    (m.rituales||[]).forEach(r=>{byR[r.rid]=(byR[r.rid]||0)+(r.qty||1);}));
+  getRes().filter(r=>r.estado==='confirmada').forEach(r=>
+    (r.rituales||[]).forEach(x=>{byR[x.rid]=(byR[x.rid]||0)+(x.qty||1);}));
+
+  document.getElementById('dash-stats').innerHTML=`
+    <div class="stat"><div class="sn">${total}</div><div class="sl">Cupos ocupados</div></div>
+    <div class="stat"><div class="sn" style="${libres<10?'color:var(--warn)':''}">${libres}</div><div class="sl">Cupos disponibles</div></div>
+    <div class="stat"><div class="sn">${desPend}</div><div class="sl">Reservas pendientes</div></div>
+    <div class="stat"><div class="sn sm">${peso(cEf+cTr)}</div><div class="sl">Caja total</div></div>`;
+
+  document.getElementById('dash-body').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div class="card">
+        <div class="card-hd">📊 Ocupación</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px">
+          <span style="color:var(--tx3)">Rituales confirmados</span>
+          <span style="color:var(--nr);font-weight:700">${total} / ${cupos}</span>
+        </div>
+        <div class="pbar"><div class="pfill" style="width:${pct}%"></div></div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:5px">${pct}% de ocupación</div>
+        <div style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--bd)">
+            <span style="color:var(--tx3)">In situ (registrados)</span>
+            <span style="color:var(--tx2)">${desMesas}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--bd)">
+            <span style="color:var(--tx3)">Reservas confirmadas</span>
+            <span style="color:var(--tx2)">${desRes}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
+            <span style="color:var(--tx3)">Reservas pendientes</span>
+            <span style="color:var(--warn)">${desPend}</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd">🥩 Por ritual</div>
+        ${S.menu.rituales.map(r=>{
+          const cnt=byR[r.id]||0;
+          const p=total>0?Math.round(cnt/total*100):0;
+          return `<div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+              <span style="color:var(--tx2)">${r.nombre}</span>
+              <span style="color:var(--cb);font-weight:700">${cnt} porciones</span>
+            </div>
+            <div class="pbar"><div class="pfill" style="width:${p}%"></div></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd">💰 Caja</div>
+      <div class="cr"><span>💵 Efectivo</span><span style="color:#4fc99e;font-weight:700">${peso(cEf)}</span></div>
+      <div class="cr"><span>📲 Transferencia</span><span style="color:var(--nr);font-weight:700">${peso(cTr)}</span></div>
+      <div class="ct"><span>TOTAL</span><span>${peso(cEf+cTr)}</span></div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════
+//  REGISTRO IN SITU
+// ════════════════════════════════════════════════
+function renderReg(){
+  const q=(document.getElementById('reg-q')||{value:''}).value.toLowerCase();
+  const list=getMesas().filter(m=>m.activa&&(!q||m.nombre.toLowerCase().includes(q)||String(m.mesa).includes(q)));
+  const el=document.getElementById('reg-list');
+  if(!list.length){
+    el.innerHTML='<div class="alert ali">Sin comensales in situ registrados aún. Toca "+ Registrar comensal".</div>';
+    return;
+  }
+  el.innerHTML=list.map(m=>`
+    <div class="mcard">
+      <div class="mcard-top">
+        <div class="mesa-b">${m.mesa}</div>
+        <div class="mcard-info">
+          <div class="mcard-name">${m.nombre}</div>
+          <div class="mcard-sub">${ritDesc(m.rituales)}</div>
+          ${m.obs?`<div class="mcard-obs">📝 ${m.obs}</div>`:''}
+          <div class="mcard-tags">
+            <span class="badge b-ok">✅ Registrado</span>
+            <span class="badge b-cb">${m.pago==='efectivo'?'💵 Efectivo':'📲 Transferencia'}</span>
+            ${(m.adicionales||[]).filter(a=>a.qty>0).length>0?`<span class="badge b-nr">+adicionales</span>`:''}
+          </div>
+          <div class="mcard-total">Total: <strong style="color:var(--nr)">${peso(totalMesa(m))}</strong></div>
+        </div>
+        <div class="mcard-acts">
+          <button class="btn bp bsm" onclick="openCuenta('${m.id}')">Ver cuenta</button>
+          <button class="btn bd bsm" onclick="delMesa('${m.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function openRegM(){
+  const ev=getEv(); if(!ev){toast('Activa un evento primero','w');return;}
+  S._regD={rituales:{},pago:null};
+  ['mr-nom','mr-mesa','mr-tel','mr-obs'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('mr-rits').innerHTML=S.menu.rituales.map(r=>`
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--bd);gap:10px">
+      <div style="flex:1">
+        <div style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--nr)">${r.nombre}</div>
+        <div style="font-size:12px;color:var(--tx2);margin-top:2px">${r.principal}</div>
+        <div style="font-size:11px;color:var(--tx3)">${r.entrada} · ${r.guarnicion}</div>
+        <div style="font-size:12px;color:var(--cb);font-weight:700;margin-top:3px">${peso(r.precio)} c/u</div>
+      </div>
+      <div class="qc">
+        <button class="qb" onclick="chgRQ('${r.id}',-1)">−</button>
+        <span class="qn" id="rq-${r.id}">0</span>
+        <button class="qb" onclick="chgRQ('${r.id}',1)">+</button>
+      </div>
+    </div>`).join('')+`<div id="mr-rt" style="text-align:right;font-size:12px;color:var(--tx3);padding-top:6px"></div>`;
+  document.getElementById('mr-pay').innerHTML=`
+    <div class="popt" id="pay-efectivo" onclick="selPago('efectivo')"><div class="picon">💵</div><div class="plbl">Efectivo</div></div>
+    <div class="popt" id="pay-transferencia" onclick="selPago('transferencia')"><div class="picon">📲</div><div class="plbl">Transferencia</div></div>`;
+  openM('m-reg');
+}
+
+function chgRQ(rid,d){
+  S._regD.rituales[rid]=Math.max(0,(S._regD.rituales[rid]||0)+d);
+  const el=document.getElementById('rq-'+rid); if(el) el.textContent=S._regD.rituales[rid];
+  let t=0;
+  Object.entries(S._regD.rituales).forEach(([id,qty])=>{const r=getRit(id);if(r)t+=r.precio*qty;});
+  const rt=document.getElementById('mr-rt'); if(rt) rt.textContent=t>0?'Subtotal rituales: '+peso(t):'';
+}
+
+function selPago(tipo){
+  S._regD.pago=tipo;
+  document.querySelectorAll('.popt').forEach(p=>p.classList.remove('sel'));
+  const el=document.getElementById('pay-'+tipo); if(el) el.classList.add('sel');
+}
+
+async function saveReg(){
+  const nom =document.getElementById('mr-nom').value.trim();
+  const mesa=document.getElementById('mr-mesa').value.trim();
+  const tel =document.getElementById('mr-tel').value.trim();
+  const obs =document.getElementById('mr-obs').value.trim();
+  if(!nom){toast('Ingresa el nombre','w');return;}
+  if(!mesa){toast('Asigna una mesa','w');return;}
+  if(!S._regD.pago){toast('Selecciona forma de pago','w');return;}
+  const rituales=Object.entries(S._regD.rituales).filter(([,q])=>q>0).map(([rid,qty])=>({rid,qty}));
+  if(!rituales.length){toast('Selecciona al menos 1 plato','w');return;}
+
+  const m={
+    id:gid(), evId:S.evId,
+    nombre:nom, mesa, tel, obs,
+    rituales,
+    adicionales:S.menu.adicionales.map(a=>({id:a.id,qty:0})),
+    pago:S._regD.pago,
+    tipo:'insitu', activa:true, cerrada:false,
+    hora:new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})
+  };
+  S.mesas.push(m);
+  await pushMesa(m);
+
+  if(tel){
+    const num=tel.replace(/\D/g,'');
+    const rd=rituales.map(({rid,qty})=>{const r=getRit(rid);return r?`${qty}× ${r.nombre} (${r.principal})`:''}).join(', ');
+    const msg=encodeURIComponent(`🔥 *A-BRASAS — Registro confirmado*\n\nHola *${nom}*.\n🥩 ${rd}\n🪑 Mesa ${mesa}${obs?'\n📝 '+obs:''}\n💰 ${m.pago}\n\n¡Que lo disfrutes! 🔥`);
+    window.open(`https://wa.me/57${num}?text=${msg}`,'_blank');
+  }
+  closeM('m-reg'); renderReg(); renderDash();
+  toast(nom+' registrado — Mesa '+mesa,'ok');
+}
+
+async function delMesa(id){
+  if(!confirm('¿Eliminar este registro?')) return;
+  S.mesas=S.mesas.filter(m=>m.id!==id);
+  saveL();
+  if(S.gasUrl) await gasCall('deleteMesa',{id});
+  renderReg(); renderDash();
+  toast('Eliminado','ok');
+}
+
+// ════════════════════════════════════════════════
+//  MESAS — VER CUENTA Y ADICIONALES
+// ════════════════════════════════════════════════
+function setMF(f){S._mesaFilt=f;renderMesas();}
+
+function renderMesas(){
+  let list=getMesas();
+  if(S._mesaFilt==='abiertas') list=list.filter(m=>m.activa&&!m.cerrada);
+  if(S._mesaFilt==='cerradas') list=list.filter(m=>m.cerrada);
+  const el=document.getElementById('mesas-list');
+  if(!list.length){
+    el.innerHTML=`<div class="alert ali">Sin mesas ${S._mesaFilt==='abiertas'?'abiertas':S._mesaFilt==='cerradas'?'cerradas':'registradas'}.</div>`;
+    return;
+  }
+  el.innerHTML=list.map(m=>`
+    <div class="mcard">
+      <div class="mcard-top">
+        <div class="mesa-b" style="${m.cerrada?'opacity:.5':''}">${m.mesa}</div>
+        <div class="mcard-info">
+          <div class="mcard-name">${m.nombre} ${m.cerrada?'<span class="badge b-gy">Cerrada</span>':''}</div>
+          <div class="mcard-sub">${ritDesc(m.rituales)}</div>
+          ${m.obs?`<div class="mcard-obs">📝 ${m.obs}</div>`:''}
+          <div class="mcard-tags">
+            ${!m.cerrada?`<span class="badge b-ok">✅ Activa</span>`:''}
+            ${m.pago?`<span class="badge b-cb">${m.pago==='efectivo'?'💵 Efectivo':'📲 Transferencia'}</span>`:''}
+          </div>
+          <div class="mcard-total">
+            Rituales: ${peso(totalRituales(m))} · Adicionales: ${peso(totalAdicionales(m))} · 
+            <strong style="color:var(--nr)">Total: ${peso(totalMesa(m))}</strong>
+          </div>
+        </div>
+        <div class="mcard-acts">
+          <button class="btn ${m.cerrada?'bs':'bp'} bsm" onclick="openCuenta('${m.id}')">
+            ${m.cerrada?'Ver':'Gestionar'}
+          </button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function openCuenta(id){
+  S._cuentaId=id;
+  const m=S.mesas.find(x=>x.id===id); if(!m) return;
+
+  document.getElementById('mc2-titulo').innerHTML=
+    `🪑 MESA ${m.mesa} — ${m.nombre} <button class="mx" onclick="closeM('m-cuenta')">✕</button>`;
+
+  // Rituales
+  document.getElementById('mc2-rituales').innerHTML=`
+    <div style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--cb);margin-bottom:8px;letter-spacing:.8px">RITUALES</div>
+    ${(m.rituales||[]).map(r=>{
+      const rit=getRit(r.rid); if(!rit) return '';
+      return `<div class="cr"><span>${r.qty}× ${rit.nombre} — ${rit.principal}</span><span style="color:var(--cb)">${peso(rit.precio*r.qty)}</span></div>`;
+    }).join('')}`;
+
+  // Adicionales con control de cantidad
+  document.getElementById('mc2-adics').innerHTML=S.menu.adicionales.map(item=>{
+    const ex=(m.adicionales||[]).find(a=>a.id===item.id);
+    const qty=ex?ex.qty:0;
+    return `<div class="cr" style="align-items:center">
+      <div>
+        <div style="font-size:13px;color:var(--tx)">${item.nombre}</div>
+        <div style="font-size:11px;color:var(--tx3)">${peso(item.precio)} c/u</div>
+      </div>
+      ${!m.cerrada?`<div class="qc">
+        <button class="qb" onclick="chgAdic('${id}','${item.id}',-1)">−</button>
+        <span class="qn" id="aq-${id}-${item.id}">${qty}</span>
+        <button class="qb" onclick="chgAdic('${id}','${item.id}',1)">+</button>
+      </div>`:`<span style="font-family:'Oswald',sans-serif;font-size:16px;color:var(--cb)">${qty} uds</span>`}
+    </div>`;
+  }).join('');
+
+  renderCuentaTotal(m);
+
+  // Botones
+  document.getElementById('mc2-pago-sel').style.display=m.cerrada?'none':'block';
+  if(!m.cerrada){
+    document.getElementById('mc2-pay').innerHTML=`
+      <div class="popt ${m.pago==='efectivo'?'sel':''}" id="c2-efe" onclick="selPago2('efectivo')"><div class="picon">💵</div><div class="plbl">Efectivo</div></div>
+      <div class="popt ${m.pago==='transferencia'?'sel':''}" id="c2-tra" onclick="selPago2('transferencia')"><div class="picon">📲</div><div class="plbl">Transferencia</div></div>`;
+    document.getElementById('mc2-btns').innerHTML=`
+      <button class="btn bok" onclick="cerrarCuenta('${id}')">💳 Cerrar cuenta</button>
+      <button class="btn bs" onclick="closeM('m-cuenta')">Cerrar</button>`;
+  } else {
+    document.getElementById('mc2-btns').innerHTML=`
+      <button class="btn bs bfw" onclick="closeM('m-cuenta')">Cerrar</button>`;
+  }
+  openM('m-cuenta');
+}
+
+function selPago2(tipo){
+  const m=S.mesas.find(x=>x.id===S._cuentaId); if(!m) return;
+  m.pago=tipo;
+  document.querySelectorAll('#mc2-pay .popt').forEach(p=>p.classList.remove('sel'));
+  const el=document.getElementById('c2-'+(tipo==='efectivo'?'efe':'tra'));
+  if(el) el.classList.add('sel');
+  renderCuentaTotal(m);
+}
+
+async function chgAdic(mesaId,itemId,d){
+  const m=S.mesas.find(x=>x.id===mesaId); if(!m||m.cerrada) return;
+  if(!m.adicionales) m.adicionales=S.menu.adicionales.map(a=>({id:a.id,qty:0}));
+  let ex=m.adicionales.find(a=>a.id===itemId);
+  if(!ex){ex={id:itemId,qty:0};m.adicionales.push(ex);}
+  ex.qty=Math.max(0,ex.qty+d);
+  const el=document.getElementById('aq-'+mesaId+'-'+itemId); if(el) el.textContent=ex.qty;
+  await pushMesa(m);
+  renderCuentaTotal(m);
+}
+
+function renderCuentaTotal(m){
+  const tR=totalRituales(m), tA=totalAdicionales(m), tot=tR+tA;
+  document.getElementById('mc2-total').innerHTML=`
+    <div class="cr"><span>Rituales</span><span style="color:var(--cb)">${peso(tR)}</span></div>
+    <div class="cr"><span>Adicionales</span><span style="color:var(--cb)">${peso(tA)}</span></div>
+    <div class="ct"><span>TOTAL</span><span>${peso(tot)}</span></div>`;
+}
+
+async function cerrarCuenta(id){
+  const m=S.mesas.find(x=>x.id===id); if(!m) return;
+  if(!m.pago){toast('Selecciona la forma de pago','w');return;}
+  m.cerrada=true; m.activa=false;
+  m.horaCierre=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+  await pushMesa(m);
+  closeM('m-cuenta');
+  toast('Cuenta cerrada — Mesa '+m.mesa,'ok');
+  renderMesas(); renderDash();
+}
+
+// ════════════════════════════════════════════════
+//  RESERVAS
+// ════════════════════════════════════════════════
+function setRF(f){S._resFilt=f;renderReservas();}
+
+function renderReservas(){
+  let list=getRes();
+  if(S._resFilt==='pendiente')  list=list.filter(r=>r.estado==='pendiente');
+  if(S._resFilt==='confirmada') list=list.filter(r=>r.estado==='confirmada');
+  const el=document.getElementById('res-list');
+  if(!list.length){
+    el.innerHTML='<div class="alert ali">Sin reservas aún.</div>';
+    return;
+  }
+  el.innerHTML=list.map(r=>`
+    <div class="mcard">
+      <div class="mcard-top">
+        <div class="mesa-b" style="${r.estado==='confirmada'?'background:rgba(42,157,110,.3);border-color:var(--ok);color:#4fc99e':''}">
+          ${r.estado==='confirmada'?r.mesa||'?':'—'}
+        </div>
+        <div class="mcard-info">
+          <div class="mcard-name">${r.nombre}</div>
+          <div class="mcard-sub">${ritDesc(r.rituales)} · ${r.personas} persona${r.personas>1?'s':''}</div>
+          ${r.obs?`<div class="mcard-obs">📝 ${r.obs}</div>`:''}
+          <div class="mcard-tags">
+            ${r.estado==='pendiente'
+              ?'<span class="badge b-warn">⏳ Sin confirmar</span>'
+              :`<span class="badge b-ok">✅ Confirmada</span><span class="badge b-cb">${r.pago==='efectivo'?'💵 Efectivo':'📲 Transferencia'}</span>`}
+            ${r.tel?`<span class="badge b-gy">📱 ${r.tel}</span>`:''}
+          </div>
+          <div class="mcard-total">${peso(totalRituales(r))}</div>
+        </div>
+        <div class="mcard-acts">
+          ${r.estado==='pendiente'
+            ?`<button class="btn bp bsm" onclick="abrirConfirm('${r.id}')">✅ Confirmar</button>`
+            :`<button class="btn bd bsm" onclick="delRes('${r.id}')">🗑</button>`}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function abrirConfirm(id){
+  const r=S.reservas.find(x=>x.id===id); if(!r) return;
+  S._confirmId=id;
+  document.getElementById('mc-info').innerHTML=`
+    <div style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:5px">${r.nombre}</div>
+    <div style="font-size:13px;color:var(--tx2);margin-bottom:3px">${ritDesc(r.rituales)}</div>
+    <div style="font-size:12px;color:var(--tx3)">${r.personas} persona${r.personas>1?'s':''} · ${r.tel||'Sin teléfono'}</div>
+    <div style="font-size:12px;color:var(--nr);margin-top:4px;font-weight:700">${peso(totalRituales(r))}</div>`;
+  document.getElementById('mc-mesa').value='';
+  document.getElementById('mc-pago').value='';
+  document.getElementById('mc-obs').value=r.obs||'';
+  openM('m-confirm');
+}
+
+async function confirmarLlegada(){
+  const id=S._confirmId;
+  const r=S.reservas.find(x=>x.id===id); if(!r) return;
+  const mesa=document.getElementById('mc-mesa').value.trim();
+  const pago=document.getElementById('mc-pago').value;
+  const obs =document.getElementById('mc-obs').value.trim();
+  if(!mesa){toast('Asigna una mesa','w');return;}
+  if(!pago){toast('Selecciona forma de pago','w');return;}
+  r.estado='confirmada'; r.mesa=mesa; r.pago=pago; r.obs=obs;
+  r.horaConf=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+
+  // Crear mesa correspondiente para gestión de adicionales
+  const m={
+    id:gid(), evId:S.evId,
+    nombre:r.nombre, mesa, tel:r.tel||'', obs,
+    rituales:r.rituales,
+    adicionales:S.menu.adicionales.map(a=>({id:a.id,qty:0})),
+    pago, tipo:'reserva', activa:true, cerrada:false,
+    reservaId:r.id,
+    hora:r.horaConf
+  };
+  S.mesas.push(m);
+
+  await pushReserva(r);
+  await pushMesa(m);
+  closeM('m-confirm');
+  renderReservas(); renderDash();
+  toast(r.nombre+' confirmado — Mesa '+mesa,'ok');
+}
+
+async function delRes(id){
+  if(!confirm('¿Eliminar esta reserva?')) return;
+  S.reservas=S.reservas.filter(r=>r.id!==id);
+  saveL();
+  if(S.gasUrl) await gasCall('deleteReserva',{id});
+  renderReservas(); renderDash();
+  toast('Reserva eliminada','ok');
+}
+
+// ════════════════════════════════════════════════
+//  LOGÍSTICA
+// ════════════════════════════════════════════════
+function renderLog(){
+  const ev=getEv();
+  const cupos=ev?ev.cupos:90;
+  const {desMesas,desRes,desPend,total}=cuposOcupados();
+  let cEf=0,cTr=0;
+  getMesas().forEach(m=>{const t=totalMesa(m);if(m.pago==='efectivo')cEf+=t;else if(m.pago==='transferencia')cTr+=t;});
+  getRes().filter(r=>r.estado==='confirmada').forEach(r=>{const t=totalRituales(r);if(r.pago==='efectivo')cEf+=t;else if(r.pago==='transferencia')cTr+=t;});
+
+  document.getElementById('log-stats').innerHTML=`
+    <div class="stat"><div class="sn">${total}</div><div class="sl">Cupos ocupados</div></div>
+    <div class="stat"><div class="sn">${Math.max(0,cupos-total)}</div><div class="sl">Cupos libres</div></div>
+    <div class="stat"><div class="sn">${desPend}</div><div class="sl">Reservas pendientes</div></div>
+    <div class="stat"><div class="sn sm">${peso(cEf+cTr)}</div><div class="sl">Total caja</div></div>`;
+
+  const resPend=getRes().filter(r=>r.estado==='pendiente');
+  document.getElementById('log-body').innerHTML=`
+    <div class="card">
+      <div class="card-hd">⏳ Reservas sin confirmar llegada</div>
+      ${!resPend.length?'<div class="alert alok">✅ Todas las reservas han llegado</div>':`
+        <div class="twrap"><table>
+          <thead><tr><th>Nombre</th><th>Tel.</th><th>Rituales</th><th>Valor</th></tr></thead>
+          <tbody>${resPend.map(r=>`<tr>
+            <td><strong>${r.nombre}</strong></td>
+            <td>${r.tel||'—'}</td>
+            <td>${ritDesc(r.rituales)}</td>
+            <td>${peso(totalRituales(r))}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>`}
+    </div>
+    <div class="card">
+      <div class="card-hd">💰 Caja total</div>
+      <div class="cr"><span>💵 Efectivo</span><span style="color:#4fc99e;font-weight:700;font-size:16px">${peso(cEf)}</span></div>
+      <div class="cr"><span>📲 Transferencia electrónica</span><span style="color:var(--nr);font-weight:700;font-size:16px">${peso(cTr)}</span></div>
+      <div class="ct"><span>TOTAL GENERAL</span><span>${peso(cEf+cTr)}</span></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">🥩 Platos totales</div>
+      <div class="twrap"><table>
+        <thead><tr><th>Ritual</th><th>Plato</th><th>Cantidad</th></tr></thead>
+        <tbody>${S.menu.rituales.map(r=>{
+          let cnt=0;
+          getMesas().forEach(m=>(m.rituales||[]).forEach(x=>{if(x.rid===r.id)cnt+=x.qty||1;}));
+          getRes().filter(x=>x.estado==='confirmada').forEach(x=>(x.rituales||[]).forEach(y=>{if(y.rid===r.id)cnt+=y.qty||1;}));
+          return `<tr><td>${r.nombre}</td><td>${r.principal}</td><td><strong style="color:var(--nr)">${cnt}</strong></td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════
+//  ADMIN — EVENTOS
+// ════════════════════════════════════════════════
+function renderEvs(){
+  document.getElementById('ev-list').innerHTML=S.eventos.map(ev=>{
+    const cnt=S.mesas.filter(m=>m.evId===ev.id&&m.activa).length
+             +S.reservas.filter(r=>r.evId===ev.id&&r.estado==='confirmada').length;
+    const link='https://a-brasas.github.io/ABRASAS/?ev='+ev.id;
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>
+          <div style="font-family:'Oswald',sans-serif;font-size:18px;color:${ev.activo?'var(--nr)':'var(--tx2)'}">${ev.nombre}</div>
+          <div style="font-size:12px;color:var(--tx3);margin-top:3px">📅 ${ev.fecha||'—'} · 📍 ${ev.lugar||'—'} · 👥 ${cnt}/${ev.cupos}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${ev.activo?'<span class="badge b-ok">Activo</span>':`<button class="btn bs bsm" onclick="activarEv('${ev.id}')">Activar</button>`}
+          <button class="btn bd bsm" onclick="delEv('${ev.id}')">🗑</button>
+        </div>
+      </div>
+      <hr class="divider">
+      <div style="font-size:12px;color:var(--tx3);margin-bottom:6px">🔗 Link de reservas para compartir:</div>
+      <div style="font-size:12px;color:var(--cb);background:var(--ng3);padding:9px 12px;border-radius:var(--r);word-break:break-all;margin-bottom:8px">${link}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn bs bsm" onclick="cpLink('${ev.id}')">📋 Copiar link</button>
+        <button class="btn bw bsm" onclick="exportarEvento('${ev.id}')">📥 Exportar reporte</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openEvM(){
+  document.getElementById('ev-fecha').value=new Date().toISOString().slice(0,10);
+  ['ev-nom','ev-lugar'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  openM('m-ev');
+}
+
+async function saveEv(){
+  const nom=document.getElementById('ev-nom').value.trim();
+  if(!nom){toast('Ingresa el nombre','w');return;}
+  const ev={
+    id:gid(), nombre:nom,
+    fecha:document.getElementById('ev-fecha').value,
+    lugar:document.getElementById('ev-lugar').value,
+    cupos:parseInt(document.getElementById('ev-cupos').value)||90,
+    sitio:parseInt(document.getElementById('ev-sitio').value)||10,
+    activo:false
+  };
+  S.eventos.push(ev); saveL();
+  if(S.gasUrl) await gasCall('saveEvento',{evento:ev});
+  closeM('m-ev'); renderEvs();
+  toast('Evento creado: '+nom,'ok');
+}
+
+async function activarEv(id){
+  S.eventos.forEach(e=>e.activo=false);
+  const ev=S.eventos.find(e=>e.id===id); if(ev){ev.activo=true;S.evId=id;}
+  saveL(); updTopEv(); renderEvs();
+  if(S.gasUrl) await syncNow(true);
+  toast('Evento activado','ok');
+}
+
+function delEv(id){
+  if(!confirm('¿Eliminar este evento?')) return;
+  S.eventos=S.eventos.filter(e=>e.id!==id);
+  if(S.evId===id) S.evId=S.eventos[0]?.id||null;
+  saveL(); renderEvs();
+}
+
+function cpLink(id){
+  const link='https://a-brasas.github.io/ABRASAS/?ev='+id;
+  navigator.clipboard.writeText(link)
+    .then(()=>toast('Link copiado ✓','ok'))
+    .catch(()=>{prompt('Copia este link:',link);});
+}
+
+function exportarEvento(evId){
+  const ev=S.eventos.find(e=>e.id===evId)||{};
+  const mesas=S.mesas.filter(m=>m.evId===evId);
+  const reservas=S.reservas.filter(r=>r.evId===evId);
+  const {total}=cuposOcupados();
+  let cEf=0,cTr=0;
+  mesas.forEach(m=>{const t=totalMesa(m);if(m.pago==='efectivo')cEf+=t;else if(m.pago==='transferencia')cTr+=t;});
+  reservas.filter(r=>r.estado==='confirmada').forEach(r=>{const t=totalRituales(r);if(r.pago==='efectivo')cEf+=t;else if(r.pago==='transferencia')cTr+=t;});
+
+  let html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Reporte ${ev.nombre||'Evento'}</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#222;}
+    h1{color:#E85F1A;} h2{color:#8A5632;margin-top:30px;}
+    table{width:100%;border-collapse:collapse;margin-top:10px;}
+    th{background:#0A0A0A;color:#E85F1A;padding:8px 12px;text-align:left;font-size:12px;}
+    td{padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;}
+    .total{font-size:20px;font-weight:700;color:#E85F1A;}
+    .resumen{background:#f9f5f0;border-radius:8px;padding:16px;margin-bottom:20px;}
+    .resumen div{display:flex;justify-content:space-between;padding:4px 0;font-size:14px;}
+    @media print{body{padding:10px;}}
+  </style></head><body>
+  <h1>🔥 A-BRASAS — Amigos &amp; Parrilla</h1>
+  <h2>Reporte del evento: ${ev.nombre||'—'}</h2>
+  <p>📅 ${ev.fecha||'—'} · 📍 ${ev.lugar||'—'} · Generado: ${new Date().toLocaleString('es-CO')}</p>
+  <div class="resumen">
+    <div><span>Cupos totales</span><strong>${ev.cupos||90}</strong></div>
+    <div><span>Rituales confirmados</span><strong>${total}</strong></div>
+    <div><span>💵 Efectivo</span><strong>$${cEf.toLocaleString('es-CO')}</strong></div>
+    <div><span>📲 Transferencia</span><strong>$${cTr.toLocaleString('es-CO')}</strong></div>
+    <div><span class="total">TOTAL CAJA</span><strong class="total">$${(cEf+cTr).toLocaleString('es-CO')}</strong></div>
+  </div>
+  <h2>Mesas registradas in situ (${mesas.length})</h2>
+  <table><thead><tr><th>Mesa</th><th>Nombre</th><th>Rituales</th><th>Adicionales</th><th>Pago</th><th>Total</th></tr></thead><tbody>
+  ${mesas.map(m=>`<tr>
+    <td>${m.mesa}</td><td>${m.nombre}</td>
+    <td>${ritDesc(m.rituales)}</td>
+    <td>$${totalAdicionales(m).toLocaleString('es-CO')}</td>
+    <td>${m.pago||'—'}</td>
+    <td><strong>$${totalMesa(m).toLocaleString('es-CO')}</strong></td>
+  </tr>`).join('')}
+  </tbody></table>
+  <h2>Reservas (${reservas.length})</h2>
+  <table><thead><tr><th>Nombre</th><th>Tel.</th><th>Rituales</th><th>Estado</th><th>Mesa</th><th>Pago</th><th>Total</th></tr></thead><tbody>
+  ${reservas.map(r=>`<tr>
+    <td>${r.nombre}</td><td>${r.tel||'—'}</td>
+    <td>${ritDesc(r.rituales)}</td>
+    <td>${r.estado==='confirmada'?'✅ Confirmada':'⏳ Pendiente'}</td>
+    <td>${r.mesa||'—'}</td>
+    <td>${r.pago||'—'}</td>
+    <td><strong>$${totalRituales(r).toLocaleString('es-CO')}</strong></td>
+  </tr>`).join('')}
+  </tbody></table>
+  <div style="margin-top:30px;padding-top:14px;border-top:2px solid #E85F1A;text-align:center;color:#888;font-size:12px">
+    A-BRASAS · Amigos &amp; Parrilla · Reporte generado automáticamente
+  </div>
+  </body></html>`;
+
+  const b=new Blob([html],{type:'text/html'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download='Reporte-'+( ev.nombre||'evento').replace(/\s/g,'-')+'.html';
+  a.click();
+  toast('Reporte descargado ✓','ok');
+}
+
+function showMEvList(){
+  document.getElementById('evlist-body').innerHTML=S.eventos.map(ev=>`
+    <div class="mcard" style="cursor:pointer" onclick="selEv('${ev.id}')">
+      <div class="mcard-top">
+        <div class="mcard-info">
+          <div class="mcard-name">${ev.nombre}</div>
+          <div class="mcard-sub">📅 ${ev.fecha||'—'} · 👥 ${ev.cupos} cupos</div>
+        </div>
+        ${ev.activo?'<span class="badge b-ok">Activo</span>':''}
+      </div>
+    </div>`).join('');
+  openM('m-evlist');
+}
+
+async function selEv(id){
+  await activarEv(id);
+  closeM('m-evlist');
+  refreshPage();
+}
+
+// ════════════════════════════════════════════════
+//  ADMIN — MENÚ
+// ════════════════════════════════════════════════
+function renderMenu(){
+  document.getElementById('menu-ed').innerHTML=`
+    <div class="card">
+      <div class="card-hd">🥩 Rituales <button class="btn bp bsm" onclick="addRit()">+ Agregar</button></div>
+      ${S.menu.rituales.map((r,i)=>`
+        <div class="card" style="background:var(--ng3);margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <input class="fi" style="font-family:'Oswald',sans-serif;font-size:15px;color:var(--nr);background:transparent;border:none;padding:0;flex:1;min-width:0" value="${r.nombre}" onchange="uR(${
