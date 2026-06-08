@@ -329,7 +329,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
     <div id="p-registro" class="pagina">
       <div class="titulo-sec">👋 REGISTRO</div>
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-        <button class="btn btn-p" onclick="abrirModal('m-reg')">+ Registrar comensal</button>
+        <button class="btn btn-p" onclick="abrirModalRegistro()">+ Registrar comensal</button>
         <input type="text" class="fi" style="flex:1;min-width:170px" id="reg-buscar" placeholder="🔍 Buscar..." oninput="renderRegistro()">
       </div>
       <div id="reg-lista"></div>
@@ -362,8 +362,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
     <div id="p-eventos" class="pagina">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
         <div class="titulo-sec" style="margin:0">📅 EVENTOS</div>
-        <button class="btn btn-p btn-sm" onclick="abrirModal('m-ev')">+ Nuevo</button>
-      </div>
+        <button class="btn btn-p btn-sm" onclick="abrirModal('m-ev')">+ Nuevo</button>      </div>
       <div id="ev-lista"></div>
     </div>
     <div id="p-menu" class="pagina">
@@ -1266,9 +1265,8 @@ function resetearReserva(){
 
 // ════════ MODALES ════════
 function abrirModal(id){
-  if(id==='m-reg') abrirModalRegistro();
-  else if(id==='m-evlist') abrirModalEvlist();
-  else document.getElementById(id).classList.add('abierto');
+  var el = document.getElementById(id);
+  if(el) el.classList.add('abierto');
 }
 function cerrarModal(id){document.getElementById(id).classList.remove('abierto');}
 document.querySelectorAll('.modal-bg').forEach(function(o){
