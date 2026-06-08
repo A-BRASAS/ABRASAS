@@ -477,7 +477,7 @@ var D = {
     ]
   },
   pines: {admin:'1234',logistica:'5555',anfitrion:'1111'},
-  gasUrl: ''
+  gasUrl: 'https://script.google.com/macros/s/AKfycbyL20qGAuTjMl2dxXyeGj5eazD0ZWQinwgxCKclzSnzl8HdY6qLogqLhjYP6-wdA51O/exec'
 };
 
 var rolSeleccionado = null;
@@ -1308,10 +1308,4 @@ var params=new URLSearchParams(window.location.search);
 var evParam=params.get('ev');
 if(evParam){
   var match=D.eventos.find(function(e){return e.id===evParam;});
-  if(match){D.evId=evParam;D.eventos.forEach(function(e){e.activo=e.id===evParam;});}
-  renderFormaReserva();
-  mostrar('reserva-publica');
-}
-</script>
-</body>
-</html>
+  if(match){D.evId=evParam;D.eventos.forEach(function(e)
