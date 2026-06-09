@@ -666,23 +666,22 @@ var syncTimer = null;
 
 function sincronizar(silencioso) {
   if(!D.gasUrl) return;
-  fetch(D.gasUrl, {
-    method:'POST',
-    body: JSON.stringify({action:'getAll',evId:D.evId}),
-    headers:{'Content-Type':'text/plain'}
-  })
+  var url = D.gasUrl + '?action=getAll&evId=' + encodeURIComponent(D.evId) + '&t=' + Date.now();
+  fetch(url)
   .then(function(r){ return r.text(); })
   .then(function(txt) {
-    var data = JSON.parse(txt);
-    if(data && data.ok) {
-      if(data.mesas) D.mesas = data.mesas.filter(function(m){return m.evId===D.evId;});
-      if(data.reservas) D.reservas = data.reservas.filter(function(r){return r.evId===D.evId;});
-      guardar();
-      if(!silencioso) toast('Datos actualizados ✓','ok');
-      refrescarPagina();
-    }
+    try {
+      var data = JSON.parse(txt);
+      if(data && data.ok) {
+        if(data.mesas)    D.mesas    = data.mesas.filter(function(m){return String(m.evId)===String(D.evId);});
+        if(data.reservas) D.reservas = data.reservas.filter(function(r){return String(r.evId)===String(D.evId);});
+        guardar();
+        if(!silencioso) toast('Datos actualizados ✓','ok');
+        refrescarPagina();
+      }
+    } catch(e) { if(!silencioso) toast('Error al procesar datos','e'); }
   })
-  .catch(function(){if(!silencioso) toast('Error de sincronización','e');});
+  .catch(function(e){ if(!silencioso) toast('Error de conexión','e'); });
 }
 
 function iniciarSync() {
@@ -690,17 +689,15 @@ function iniciarSync() {
   if(D.gasUrl) syncTimer = setInterval(function(){ sincronizar(true); }, 15000);
 }
 
-function pushMesa(mesa) {
+function gasEnviar(action, objeto) {
   guardar();
   if(!D.gasUrl) return;
-  fetch(D.gasUrl,{method:'POST',body:JSON.stringify({action:'saveMesa',evId:D.evId,mesa:mesa}),headers:{'Content-Type':'text/plain'}}).catch(function(){});
+  var url = D.gasUrl + '?action=' + action + '&evId=' + encodeURIComponent(D.evId) + '&data=' + encodeURIComponent(JSON.stringify(objeto)) + '&t=' + Date.now();
+  fetch(url).catch(function(){});
 }
 
-function pushReserva(res) {
-  guardar();
-  if(!D.gasUrl) return;
-  fetch(D.gasUrl,{method:'POST',body:JSON.stringify({action:'saveReserva',evId:D.evId,reserva:res}),headers:{'Content-Type':'text/plain'}}).catch(function(){});
-}
+function pushMesa(mesa) { gasEnviar('saveMesa', mesa); }
+function pushReserva(res) { gasEnviar('saveReserva', res); }
 
 // ════════ PANEL ════════
 function renderPanel() {
