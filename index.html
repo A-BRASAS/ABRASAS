@@ -1308,4 +1308,10 @@ var params=new URLSearchParams(window.location.search);
 var evParam=params.get('ev');
 if(evParam){
   var match=D.eventos.find(function(e){return e.id===evParam;});
-  if(match){D.evId=evParam;D.eventos.forEach(function(e)
+  if(match){D.evId=evParam;D.eventos.forEach(function(e){e.activo=e.id===evParam;});}
+  renderFormaReserva();
+  mostrar('reserva-publica');
+}
+</script>
+</body>
+</html>
