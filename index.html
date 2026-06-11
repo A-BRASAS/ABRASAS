@@ -355,7 +355,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
     </div>
     <div id="p-logistica" class="pagina">
       <div class="titulo-sec">📦 LOGÍSTICA</div>
-      <button class="btn btn-s btn-sm" style="margin-bottom:14px" onclick="sincronizar()">🔄 Actualizar</button>
+      <button class="btn btn-s btn-sm" style="margin-bottom:14px" id="btn-actualizar-log" onclick="actualizarLog()">🔄 Actualizar</button>
       <div class="stats" id="log-stats"></div>
       <div id="log-cuerpo"></div>
     </div>
@@ -682,6 +682,34 @@ function sincronizar(silencioso) {
     } catch(e) { if(!silencioso) toast('Error al procesar datos','e'); }
   })
   .catch(function(e){ if(!silencioso) toast('Error de conexión','e'); });
+}
+
+function actualizarLog() {
+  var btn = document.getElementById('btn-actualizar-log');
+  if(btn) btn.textContent = '⏳ Actualizando...';
+  var url = D.gasUrl + '?action=getAll&evId=' + encodeURIComponent(D.evId) + '&t=' + Date.now();
+  fetch(url)
+  .then(function(r){ return r.text(); })
+  .then(function(txt) {
+    try {
+      var data = JSON.parse(txt);
+      if(data && data.ok) {
+        if(data.mesas)    D.mesas    = data.mesas.filter(function(m){return String(m.evId)===String(D.evId);});
+        if(data.reservas) D.reservas = data.reservas.filter(function(r){return String(r.evId)===String(D.evId);});
+        guardar();
+        toast('Datos actualizados ✓','ok');
+        renderLogistica();
+        renderPanel();
+      } else {
+        toast('Sin datos del servidor','w');
+      }
+    } catch(e) { toast('Error: '+e.message,'e'); }
+    if(btn) btn.textContent = '🔄 Actualizar';
+  })
+  .catch(function(e){
+    toast('Error de conexión','e');
+    if(btn) btn.textContent = '🔄 Actualizar';
+  });
 }
 
 function iniciarSync() {
