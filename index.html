@@ -340,7 +340,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
         <button class="btn btn-s btn-sm" onclick="filtroRes='todas';renderReservas()">Todas</button>
         <button class="btn btn-s btn-sm" onclick="filtroRes='pendiente';renderReservas()">⏳ Pendientes</button>
         <button class="btn btn-s btn-sm" onclick="filtroRes='confirmada';renderReservas()">✅ Confirmadas</button>
-        <button class="btn btn-s btn-sm" style="margin-left:auto" onclick="sincronizar()">🔄 Actualizar</button>
+        <button class="btn btn-s btn-sm" style="margin-left:auto" id="btn-actualizar-res" onclick="actualizarDatos('btn-actualizar-res')">🔄 Actualizar</button>
       </div>
       <div id="res-lista"></div>
     </div>
@@ -684,13 +684,24 @@ function sincronizar(silencioso) {
   .catch(function(e){ if(!silencioso) toast('Error de conexión','e'); });
 }
 
-function actualizarLog() {
-  var btn = document.getElementById('btn-actualizar-log');
-  if(btn) btn.textContent = '⏳ Actualizando...';
+function actualizarDatos(idBoton) {
+  var btn = idBoton ? document.getElementById(idBoton) : null;
+  var textoOriginal = btn ? btn.innerHTML : '';
+  if(btn) btn.innerHTML = '⏳ Actualizando...';
+  if(!D.gasUrl) {
+    toast('Sincronización no configurada','w');
+    if(btn) btn.innerHTML = textoOriginal;
+    return;
+  }
   var url = D.gasUrl + '?action=getAll&evId=' + encodeURIComponent(D.evId) + '&t=' + Date.now();
-  fetch(url)
+
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function(){ controller.abort(); }, 20000);
+
+  fetch(url, {signal: controller.signal})
   .then(function(r){ return r.text(); })
   .then(function(txt) {
+    clearTimeout(timeoutId);
     try {
       var data = JSON.parse(txt);
       if(data && data.ok) {
@@ -698,19 +709,47 @@ function actualizarLog() {
         if(data.reservas) D.reservas = data.reservas.filter(function(r){return String(r.evId)===String(D.evId);});
         guardar();
         toast('Datos actualizados ✓','ok');
-        renderLogistica();
-        renderPanel();
+        refrescarPagina();
+      } else if(data && data.error) {
+        toast('Error del servidor: '+data.error,'e');
       } else {
-        toast('Sin datos del servidor','w');
+        toast('Respuesta inesperada del servidor','w');
       }
-    } catch(e) { toast('Error: '+e.message,'e'); }
-    if(btn) btn.textContent = '🔄 Actualizar';
+    } catch(e) { toast('Error al procesar: '+e.message,'e'); }
+    if(btn) btn.innerHTML = textoOriginal;
   })
   .catch(function(e){
-    toast('Error de conexión','e');
-    if(btn) btn.textContent = '🔄 Actualizar';
+    clearTimeout(timeoutId);
+    if(e.name === 'AbortError') {
+      toast('El servidor tardó demasiado. Intenta de nuevo','w');
+    } else {
+      toast('Error de conexión. Revisa tu internet','e');
+    }
+    if(btn) btn.innerHTML = textoOriginal;
   });
 }
+
+// Compatibilidad con nombres anteriores
+function sincronizar(silencioso) {
+  if(silencioso) {
+    if(!D.gasUrl) return;
+    var url = D.gasUrl + '?action=getAll&evId=' + encodeURIComponent(D.evId) + '&t=' + Date.now();
+    fetch(url).then(function(r){return r.text();}).then(function(txt){
+      try {
+        var data = JSON.parse(txt);
+        if(data && data.ok) {
+          if(data.mesas)    D.mesas    = data.mesas.filter(function(m){return String(m.evId)===String(D.evId);});
+          if(data.reservas) D.reservas = data.reservas.filter(function(r){return String(r.evId)===String(D.evId);});
+          guardar();
+          refrescarPagina();
+        }
+      } catch(e){}
+    }).catch(function(){});
+  } else {
+    actualizarDatos(null);
+  }
+}
+function actualizarLog() { actualizarDatos('btn-actualizar-log'); }
 
 function iniciarSync() {
   if(syncTimer) clearInterval(syncTimer);
@@ -1188,7 +1227,7 @@ function renderConfig() {
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">🔗 Sincronización</div>'+
     '<div class="alert '+(D.gasUrl?'alert-ok':'alert-w')+'" style="margin-bottom:14px">'+(D.gasUrl?'✅ Sincronización activa':'⚠️ Sin sincronización — solo en este dispositivo')+'</div>'+
     '<div class="fg"><label>URL del Google Apps Script</label><input type="text" class="fi" id="cfg-gas" value="'+(D.gasUrl||'')+'" placeholder="https://script.google.com/macros/s/.../exec"></div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-p btn-sm" onclick="guardarGas()">💾 Guardar</button><button class="btn btn-s btn-sm" onclick="sincronizar()">🔄 Sincronizar</button></div></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-p btn-sm" onclick="guardarGas()">💾 Guardar</button><button class="btn btn-s btn-sm" id="btn-actualizar-cfg" onclick="actualizarDatos(\'btn-actualizar-cfg\')">🔄 Sincronizar</button></div></div>'+
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">🔑 PINs</div>'+
     '<table><thead><tr><th>Rol</th><th>PIN actual</th><th>Nuevo PIN</th><th></th></tr></thead><tbody>'+
     roles.map(function(r,i){return'<tr><td>'+labs[i]+'</td><td><span class="badge badge-gy">'+(D.pines[r]||'—')+'</span></td><td><input type="password" class="fi" id="pin-'+r+'" placeholder="Nuevo" style="width:90px;padding:6px 10px"></td><td><button class="btn btn-s btn-sm" onclick="guardarPin(\''+r+'\')">💾</button></td></tr>';}).join('')+
