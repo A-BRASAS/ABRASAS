@@ -1016,28 +1016,60 @@ function cerrarCuenta(id) {
 
 // ════════ RESERVAS ════════
 function renderReservas() {
-  var lista=getRes().filter(function(r){ return filtroRes==='todas'||r.estado===filtroRes; });
+  var todasMesas = getMesas();
+  var todasRes   = getRes();
+  var lista = [];
+
+  todasMesas.forEach(function(m) {
+    lista.push({
+      id:m.id, nombre:m.nombre, mesa:m.mesa, tel:m.tel||'',
+      rituales:m.rituales, personas:m.personas||1, obs:m.obs||'',
+      pago:m.pago||'', estado:m.cerrada?'cerrada':'activa',
+      tipo:m.tipo||'insitu', total:totalMesa(m), origen:'mesa'
+    });
+  });
+
+  todasRes.filter(function(r){ return r.estado==='pendiente'; }).forEach(function(r) {
+    lista.push({
+      id:r.id, nombre:r.nombre, mesa:null, tel:r.tel||'',
+      rituales:r.rituales, personas:r.personas||1, obs:r.obs||'',
+      pago:'', estado:'pendiente', tipo:'reserva',
+      total:totalRit(r), origen:'reserva'
+    });
+  });
+
+  if(filtroRes==='pendiente')  lista=lista.filter(function(x){return x.estado==='pendiente';});
+  if(filtroRes==='confirmada') lista=lista.filter(function(x){return x.estado==='activa'||x.estado==='cerrada';});
+
   var el=document.getElementById('res-lista');
-  if(!lista.length){el.innerHTML='<div class="alert alert-i">Sin reservas aún.</div>';return;}
-  el.innerHTML=lista.map(function(r){
-    var conf=r.estado==='confirmada';
+  if(!lista.length){el.innerHTML='<div class="alert alert-i">Sin registros aun.</div>';return;}
+
+  el.innerHTML=lista.map(function(x){
+    var mesaColor=x.estado==='activa'?'background:rgba(42,157,110,.3);border-color:#2a9d6e;color:#4fc99e':x.estado==='cerrada'?'opacity:.6':'';
+    var estadoBadge=x.estado==='activa'?'<span class="badge badge-ok">Activo</span>':x.estado==='cerrada'?'<span class="badge badge-gy">Cerrado</span>':'<span class="badge badge-warn">Pendiente</span>';
+    var pagoBadge=x.pago?'<span class="badge badge-cb">'+(x.pago==='efectivo'?'Efectivo':'Transferencia')+'</span>':'';
+    var tipoBadge=x.tipo==='insitu'?'<span class="badge badge-nr">In situ</span>':'<span class="badge badge-gy">Reserva</span>';
+    var idQ=x.id.replace(/'/g,"\\'");
+    var btnAcc=x.estado==='pendiente'
+      ?'<button class="btn btn-p btn-sm" onclick="abrirConfirm(\''+idQ+'\')">Confirmar</button>'
+      :x.origen==='mesa'?'<button class="btn btn-p btn-sm" onclick="abrirCuenta(\''+idQ+'\')">Ver cuenta</button>':'';
+    var btnDel=x.origen==='reserva'
+      ?'<button class="btn btn-d btn-sm" onclick="eliminarRes(\''+idQ+'\')">Eliminar</button>'
+      :'<button class="btn btn-d btn-sm" onclick="eliminarMesa(\''+idQ+'\')">Eliminar</button>';
     return '<div class="mcard"><div class="mcard-top">'+
-      '<div class="mesa-num" style="'+(conf?'background:rgba(42,157,110,.3);border-color:#2a9d6e;color:#4fc99e':'')+'">'+( conf?r.mesa||'?':'—')+'</div>'+
+      '<div class="mesa-num" style="'+mesaColor+'">'+(x.mesa||'---')+'</div>'+
       '<div class="mcard-info">'+
-      '<div class="mcard-nom">'+r.nombre+'</div>'+
-      '<div class="mcard-sub">'+ritDesc(r.rituales)+' · '+r.personas+' persona'+(r.personas>1?'s':'')+'</div>'+
-      (r.obs?'<div class="mcard-obs">📝 '+r.obs+'</div>':'')+
-      '<div class="mcard-tags">'+
-      (conf?'<span class="badge badge-ok">✅ Confirmada</span> <span class="badge badge-cb">'+(r.pago==='efectivo'?'💵 Efectivo':'📲 Transferencia')+'</span>':'<span class="badge badge-warn">⏳ Pendiente</span>')+
-      (r.tel?' <span class="badge badge-gy">📱 '+r.tel+'</span>':'')+
+      '<div class="mcard-nom">'+x.nombre+'</div>'+
+      '<div class="mcard-sub">'+ritDesc(x.rituales)+' - '+x.personas+' persona'+(x.personas>1?'s':'')+'</div>'+
+      (x.obs?'<div class="mcard-obs">Obs: '+x.obs+'</div>':'')+
+      '<div class="mcard-tags">'+estadoBadge+' '+tipoBadge+' '+pagoBadge+(x.tel?' <span class="badge badge-gy">'+x.tel+'</span>':'')+'</div>'+
+      '<div class="mcard-total"><strong style="color:#E85F1A">'+peso(x.total)+'</strong></div>'+
       '</div>'+
-      '<div class="mcard-total">'+peso(totalRit(r))+'</div>'+
-      '</div>'+
-      '<div class="mcard-btns">'+
-      (!conf?'<button class="btn btn-p btn-sm" onclick="abrirConfirm(\''+r.id+'\')">✅ Confirmar</button>':'<button class="btn btn-d btn-sm" onclick="eliminarRes(\''+r.id+'\')">🗑</button>')+
+      '<div class="mcard-btns">'+btnAcc+' '+btnDel+
       '</div></div></div>';
   }).join('');
 }
+
 
 function abrirConfirm(id) {
   var r=D.reservas.find(function(x){return x.id===id;}); if(!r) return;
