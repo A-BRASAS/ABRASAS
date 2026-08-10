@@ -315,6 +315,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
       </div>
     </div>
     <div class="topbar-der">
+      <span id="sync-dot" style="display:none;align-items:center;gap:4px;background:#3a2a10;border:1px solid rgba(232,95,26,.5);color:#E85F1A;border-radius:20px;padding:5px 10px;font-size:11px;font-weight:700" title="Cambios pendientes de enviar">⏳</span>
       <div class="ev-chip" id="top-ev" onclick="abrirModal('m-evlist')">Sin evento</div>
       <button class="btn-salir" onclick="salir()">Salir</button>
     </div>
@@ -477,7 +478,7 @@ var D = {
     ]
   },
   pines: {admin:'1234',logistica:'5555',anfitrion:'1111'},
-  gasUrl: 'https://script.google.com/macros/s/AKfycbwDbK-SSa_EretEnrNHqg3ee1wgGQjYJrwxB6Wz2JkCRqULQ5mynBIaCOFNbR5FkxI/exec'
+  gasUrl: 'https://script.google.com/macros/s/AKfycbwOJKrwprj1326q3NAAlvVBvojXqDLvl7Gf9sTmMniE6AY4jKyhCLGhmRcI5alrTaks/exec'
 };
 
 var rolSeleccionado = null;
@@ -549,13 +550,17 @@ function guardar() {
     localStorage.setItem('ab6', JSON.stringify({
       gasUrl:D.gasUrl, evId:D.evId,
       eventos:D.eventos, mesas:D.mesas, reservas:D.reservas,
-      menu:D.menu, pines:D.pines
+      menu:D.menu, pines:D.pines,
+      cola:D.cola||[], configMod:D.configMod||0
     }));
   } catch(e) {}
 }
 function cargar() {
   try {
     var d = JSON.parse(localStorage.getItem('ab6') || '{}');
+    // Migración: reemplaza automáticamente la URL antigua del script
+    var URLS_VIEJAS = ['https://script.google.com/macros/s/AKfycbwDbK-SSa_EretEnrNHqg3ee1wgGQjYJrwxB6Wz2JkCRqULQ5mynBIaCOFNbR5FkxI/exec'];
+    if(d.gasUrl && URLS_VIEJAS.indexOf(d.gasUrl) >= 0) d.gasUrl = D.gasUrl;
     if(d.gasUrl) D.gasUrl = d.gasUrl;
     if(d.evId) D.evId = d.evId;
     if(d.eventos) D.eventos = d.eventos;
@@ -563,6 +568,8 @@ function cargar() {
     if(d.reservas) D.reservas = d.reservas;
     if(d.menu) D.menu = d.menu;
     if(d.pines) D.pines = d.pines;
+    if(d.cola) D.cola = d.cola;
+    if(d.configMod) D.configMod = d.configMod;
   } catch(e) {}
   if(!D.eventos.length) {
     var id = 'ev' + Date.now();
@@ -662,39 +669,140 @@ function actualizarEvChip() {
 }
 
 // ════════ SINCRONIZACIÓN ════════
+// Arquitectura: cola de escrituras persistente con reintentos (offline-first).
+// El pull nunca sobrescribe datos mientras haya escrituras pendientes de enviar.
 var syncTimer = null;
+var opEnVuelo = false;
+var configTimer = null;
 
-function sincronizar(silencioso) {
-  if(!D.gasUrl) return;
-  var url = D.gasUrl + '?action=getAll&evId=' + encodeURIComponent(D.evId) + '&t=' + Date.now();
-  fetch(url)
-  .then(function(r){ return r.text(); })
-  .then(function(txt) {
-    try {
-      var data = JSON.parse(txt);
-      if(data && data.ok) {
-        if(data.mesas)    D.mesas    = data.mesas.filter(function(m){return String(m.evId)===String(D.evId);});
-        if(data.reservas) D.reservas = data.reservas.filter(function(r){return String(r.evId)===String(D.evId);});
-        guardar();
-        if(!silencioso) toast('Datos actualizados ✓','ok');
-        refrescarPagina();
-      }
-    } catch(e) { if(!silencioso) toast('Error al procesar datos','e'); }
-  })
-  .catch(function(e){ if(!silencioso) toast('Error de conexión','e'); });
+function colaPendiente() { return (D.cola||[]).length > 0 || !!configTimer; }
+
+function actualizarIndicador() {
+  var el = document.getElementById('sync-dot');
+  if(!el) return;
+  var n = (D.cola||[]).length;
+  el.style.display = n ? 'inline-flex' : 'none';
+  el.textContent = '⏳ ' + n;
 }
 
-function actualizarDatos(idBoton) {
+// Encola una operación de escritura y trata de enviarla de inmediato.
+// Si no hay conexión, queda guardada en localStorage y se reintenta sola.
+function encolar(action, objeto) {
+  if(!D.cola) D.cola = [];
+  D.cola.push({action:action, data:objeto||{}, evId:D.evId, ts:Date.now()});
+  guardar();
+  actualizarIndicador();
+  procesarCola();
+}
+
+function pushMesa(mesa)   { encolar('saveMesa', mesa); }
+function pushReserva(res) { encolar('saveReserva', res); }
+
+// Sincroniza eventos, menú y PINes (con debounce para no saturar al escribir).
+function pushConfig() {
+  D.configMod = Date.now();
+  guardar();
+  if(configTimer) clearTimeout(configTimer);
+  configTimer = setTimeout(function() {
+    configTimer = null;
+    if(!D.cola) D.cola = [];
+    // Reemplaza cualquier saveConfig pendiente (no en vuelo) por el más reciente
+    D.cola = D.cola.filter(function(o){ return o.action!=='saveConfig' || o.vuelo; });
+    D.cola.push({action:'saveConfig', data:{eventos:D.eventos, menu:D.menu, pines:D.pines, mod:D.configMod}, ts:Date.now()});
+    guardar();
+    actualizarIndicador();
+    procesarCola();
+  }, 800);
+}
+
+function urlOp(op) {
+  var u = D.gasUrl + '?action=' + op.action + '&evId=' + encodeURIComponent(op.evId||D.evId||'') + '&t=' + Date.now();
+  if(op.action==='deleteMesa' || op.action==='deleteReserva') {
+    u += '&id=' + encodeURIComponent(op.data.id||'');
+  } else if(op.action!=='clearEvento') {
+    u += '&data=' + encodeURIComponent(JSON.stringify(op.data));
+  }
+  return u;
+}
+
+// Procesa la cola en orden, una operación a la vez, con confirmación del servidor.
+function procesarCola() {
+  if(opEnVuelo || !D.gasUrl || !(D.cola||[]).length) { actualizarIndicador(); return; }
+  var op = D.cola[0];
+  op.vuelo = true;
+  opEnVuelo = true;
+  fetch(urlOp(op))
+  .then(function(r){ return r.text(); })
+  .then(function(txt) {
+    opEnVuelo = false;
+    var data = null;
+    try { data = JSON.parse(txt); } catch(e) {}
+    if(data && data.ok) {
+      var i = D.cola.indexOf(op);
+      if(i >= 0) D.cola.splice(i, 1);
+      else delete op.vuelo;
+      guardar();
+      actualizarIndicador();
+      procesarCola();
+    } else {
+      delete op.vuelo; // se reintenta en el próximo ciclo de sync
+    }
+  })
+  .catch(function() {
+    opEnVuelo = false;
+    delete op.vuelo;
+  });
+}
+
+// Aplica los datos del servidor SIN pisar cambios locales pendientes.
+function aplicarPull(data) {
+  var cambioAlgo = false;
+  if(!colaPendiente()) {
+    // Conserva los datos locales de otros eventos; reemplaza solo el evento actual
+    if(data.mesas) {
+      D.mesas = D.mesas.filter(function(m){ return String(m.evId)!==String(D.evId); })
+        .concat(data.mesas.filter(function(m){ return String(m.evId)===String(D.evId); }));
+      cambioAlgo = true;
+    }
+    if(data.reservas) {
+      D.reservas = D.reservas.filter(function(r){ return String(r.evId)!==String(D.evId); })
+        .concat(data.reservas.filter(function(r){ return String(r.evId)===String(D.evId); }));
+      cambioAlgo = true;
+    }
+  }
+  // Config compartida (eventos, menú, PINes): gana la versión más reciente
+  var hayConfigPendiente = !!configTimer || (D.cola||[]).some(function(o){ return o.action==='saveConfig'; });
+  if(data.config && !hayConfigPendiente && Number(data.config.mod||0) > Number(D.configMod||0)) {
+    if(data.config.eventos && data.config.eventos.length) D.eventos = data.config.eventos;
+    if(data.config.menu)  D.menu  = data.config.menu;
+    if(data.config.pines) D.pines = data.config.pines;
+    D.configMod = Number(data.config.mod) || Date.now();
+    // Si el evento actual ya no existe, pasar al activo
+    if(!D.eventos.some(function(e){ return e.id===D.evId; })) {
+      D.evId = (D.eventos.find(function(e){ return e.activo; }) || D.eventos[0] || {}).id || null;
+    }
+    cambioAlgo = true;
+  }
+  if(cambioAlgo) {
+    guardar();
+    actualizarEvChip();
+    refrescarPagina();
+    var pub = document.getElementById('reserva-publica');
+    if(pub && pub.style.display === 'block') renderFormaReserva();
+  }
+}
+
+function sincronizar(silencioso, idBoton) {
+  if(!D.gasUrl) {
+    if(!silencioso) toast('Sincronización no configurada','w');
+    return;
+  }
+  procesarCola(); // primero empuja lo pendiente
   var btn = idBoton ? document.getElementById(idBoton) : null;
   var textoOriginal = btn ? btn.innerHTML : '';
   if(btn) btn.innerHTML = '⏳ Actualizando...';
-  if(!D.gasUrl) {
-    toast('Sincronización no configurada','w');
-    if(btn) btn.innerHTML = textoOriginal;
-    return;
-  }
-  var url = D.gasUrl + '?action=getAll&evId=' + encodeURIComponent(D.evId) + '&t=' + Date.now();
 
+  var url = D.gasUrl + '?action=getAll&evId=' + encodeURIComponent(D.evId||'') + '&t=' + Date.now();
   var controller = new AbortController();
   var timeoutId = setTimeout(function(){ controller.abort(); }, 20000);
 
@@ -705,50 +813,27 @@ function actualizarDatos(idBoton) {
     try {
       var data = JSON.parse(txt);
       if(data && data.ok) {
-        if(data.mesas)    D.mesas    = data.mesas.filter(function(m){return String(m.evId)===String(D.evId);});
-        if(data.reservas) D.reservas = data.reservas.filter(function(r){return String(r.evId)===String(D.evId);});
-        guardar();
-        toast('Datos actualizados ✓','ok');
-        refrescarPagina();
+        aplicarPull(data);
+        if(!silencioso) toast('Datos actualizados ✓','ok');
       } else if(data && data.error) {
-        toast('Error del servidor: '+data.error,'e');
+        if(!silencioso) toast('Error del servidor: '+data.error,'e');
       } else {
-        toast('Respuesta inesperada del servidor','w');
+        if(!silencioso) toast('Respuesta inesperada del servidor','w');
       }
-    } catch(e) { toast('Error al procesar: '+e.message,'e'); }
+    } catch(e) { if(!silencioso) toast('Error al procesar: '+e.message,'e'); }
     if(btn) btn.innerHTML = textoOriginal;
   })
-  .catch(function(e){
+  .catch(function(e) {
     clearTimeout(timeoutId);
-    if(e.name === 'AbortError') {
-      toast('El servidor tardó demasiado. Intenta de nuevo','w');
-    } else {
-      toast('Error de conexión. Revisa tu internet','e');
+    if(!silencioso) {
+      if(e.name === 'AbortError') toast('El servidor tardó demasiado. Intenta de nuevo','w');
+      else toast('Sin conexión. Los cambios se enviarán al reconectar','w');
     }
     if(btn) btn.innerHTML = textoOriginal;
   });
 }
 
-// Compatibilidad con nombres anteriores
-function sincronizar(silencioso) {
-  if(silencioso) {
-    if(!D.gasUrl) return;
-    var url = D.gasUrl + '?action=getAll&evId=' + encodeURIComponent(D.evId) + '&t=' + Date.now();
-    fetch(url).then(function(r){return r.text();}).then(function(txt){
-      try {
-        var data = JSON.parse(txt);
-        if(data && data.ok) {
-          if(data.mesas)    D.mesas    = data.mesas.filter(function(m){return String(m.evId)===String(D.evId);});
-          if(data.reservas) D.reservas = data.reservas.filter(function(r){return String(r.evId)===String(D.evId);});
-          guardar();
-          refrescarPagina();
-        }
-      } catch(e){}
-    }).catch(function(){});
-  } else {
-    actualizarDatos(null);
-  }
-}
+function actualizarDatos(idBoton) { sincronizar(false, idBoton); }
 function actualizarLog() { actualizarDatos('btn-actualizar-log'); }
 
 function iniciarSync() {
@@ -756,15 +841,8 @@ function iniciarSync() {
   if(D.gasUrl) syncTimer = setInterval(function(){ sincronizar(true); }, 15000);
 }
 
-function gasEnviar(action, objeto) {
-  guardar();
-  if(!D.gasUrl) return;
-  var url = D.gasUrl + '?action=' + action + '&evId=' + encodeURIComponent(D.evId) + '&data=' + encodeURIComponent(JSON.stringify(objeto)) + '&t=' + Date.now();
-  fetch(url).catch(function(){});
-}
-
-function pushMesa(mesa) { gasEnviar('saveMesa', mesa); }
-function pushReserva(res) { gasEnviar('saveReserva', res); }
+// Reintenta la cola apenas vuelve la conexión
+window.addEventListener('online', function(){ procesarCola(); sincronizar(true); });
 
 // ════════ PANEL ════════
 function renderPanel() {
@@ -907,6 +985,7 @@ function eliminarMesa(id) {
   if(!confirm('¿Eliminar este registro?')) return;
   D.mesas = D.mesas.filter(function(m){ return m.id!==id; });
   guardar();
+  encolar('deleteMesa', {id:id});
   renderRegistro(); renderPanel();
   toast('Eliminado','ok');
 }
@@ -1112,6 +1191,7 @@ function eliminarRes(id) {
   if(!confirm('¿Eliminar esta reserva?')) return;
   D.reservas=D.reservas.filter(function(r){return r.id!==id;});
   guardar();
+  encolar('deleteReserva', {id:id});
   renderReservas(); renderPanel();
   toast('Eliminada','ok');
 }
@@ -1169,7 +1249,7 @@ function guardarEvento() {
   var nom=document.getElementById('ev-nom').value.trim();
   if(!nom){toast('Ingresa el nombre','w');return;}
   var ev={id:uid(),nombre:nom,fecha:document.getElementById('ev-fecha').value,lugar:document.getElementById('ev-lugar').value,cupos:parseInt(document.getElementById('ev-cupos').value)||90,sitio:parseInt(document.getElementById('ev-sitio').value)||10,activo:false};
-  D.eventos.push(ev); guardar();
+  D.eventos.push(ev); guardar(); pushConfig();
   cerrarModal('m-ev'); renderEventos();
   toast('Evento creado: '+nom,'ok');
 }
@@ -1177,7 +1257,7 @@ function guardarEvento() {
 function activarEvento(id) {
   D.eventos.forEach(function(e){e.activo=false;});
   var ev=D.eventos.find(function(e){return e.id===id;}); if(ev){ev.activo=true;D.evId=id;}
-  guardar(); actualizarEvChip(); renderEventos();
+  guardar(); pushConfig(); actualizarEvChip(); renderEventos();
   toast('Evento activado','ok');
 }
 
@@ -1185,7 +1265,7 @@ function eliminarEvento(id) {
   if(!confirm('¿Eliminar?')) return;
   D.eventos=D.eventos.filter(function(e){return e.id!==id;});
   if(D.evId===id) D.evId=(D.eventos[0]||{}).id||null;
-  guardar(); renderEventos();
+  guardar(); pushConfig(); renderEventos();
 }
 
 function copiarLink(id) {
@@ -1245,19 +1325,19 @@ function renderMenu() {
         '<button class="btn btn-d btn-sm" onclick="dA('+i+')">🗑</button></div>';
     }).join('')+'</div>';
 }
-function uR(i,f,v){D.menu.rituales[i][f]=v;guardar();}
-function uA(i,f,v){D.menu.adicionales[i][f]=v;guardar();}
-function addRit(){D.menu.rituales.push({id:uid(),nombre:'Nuevo Ritual',principal:'',entrada:'',guarnicion:'',bebida:'',precio:0});guardar();renderMenu();}
-function dR(i){if(confirm('¿Eliminar?')){D.menu.rituales.splice(i,1);guardar();renderMenu();}}
-function addA(){D.menu.adicionales.push({id:uid(),nombre:'Nuevo producto',precio:0});guardar();renderMenu();}
-function dA(i){D.menu.adicionales.splice(i,1);guardar();renderMenu();}
+function uR(i,f,v){D.menu.rituales[i][f]=v;guardar();pushConfig();}
+function uA(i,f,v){D.menu.adicionales[i][f]=v;guardar();pushConfig();}
+function addRit(){D.menu.rituales.push({id:uid(),nombre:'Nuevo Ritual',principal:'',entrada:'',guarnicion:'',bebida:'',precio:0});guardar();pushConfig();renderMenu();}
+function dR(i){if(confirm('¿Eliminar?')){D.menu.rituales.splice(i,1);guardar();pushConfig();renderMenu();}}
+function addA(){D.menu.adicionales.push({id:uid(),nombre:'Nuevo producto',precio:0});guardar();pushConfig();renderMenu();}
+function dA(i){D.menu.adicionales.splice(i,1);guardar();pushConfig();renderMenu();}
 
 // ════════ CONFIG ════════
 function renderConfig() {
   var roles=['admin','logistica','anfitrion'],labs=['Admin','Logística','Anfitrión'];
   document.getElementById('cfg-cuerpo').innerHTML=
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">🔗 Sincronización</div>'+
-    '<div class="alert '+(D.gasUrl?'alert-ok':'alert-w')+'" style="margin-bottom:14px">'+(D.gasUrl?'✅ Sincronización activa':'⚠️ Sin sincronización — solo en este dispositivo')+'</div>'+
+    '<div class="alert '+(D.gasUrl?'alert-ok':'alert-w')+'" style="margin-bottom:14px">'+(D.gasUrl?('✅ Sincronización activa'+((D.cola||[]).length?' · ⏳ '+(D.cola||[]).length+' cambio(s) pendiente(s) de enviar':'')):'⚠️ Sin sincronización — solo en este dispositivo')+'</div>'+
     '<div class="fg"><label>URL del Google Apps Script</label><input type="text" class="fi" id="cfg-gas" value="'+(D.gasUrl||'')+'" placeholder="https://script.google.com/macros/s/.../exec"></div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-p btn-sm" onclick="guardarGas()">💾 Guardar</button><button class="btn btn-s btn-sm" id="btn-actualizar-cfg" onclick="actualizarDatos(\'btn-actualizar-cfg\')">🔄 Sincronizar</button></div></div>'+
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">🔑 PINs</div>'+
@@ -1271,8 +1351,8 @@ function renderConfig() {
 }
 
 function guardarGas(){D.gasUrl=(document.getElementById('cfg-gas')||{value:''}).value.trim();guardar();if(D.gasUrl)iniciarSync();toast('URL guardada','ok');renderConfig();}
-function guardarPin(r){var v=(document.getElementById('pin-'+r)||{value:''}).value.trim();if(!v){toast('Ingresa el PIN','w');return;}D.pines[r]=v;guardar();renderConfig();toast('PIN actualizado','ok');}
-function limpiarDatos(){if(!confirm('¿Limpiar TODOS los datos del evento actual?'))return;D.mesas=D.mesas.filter(function(m){return m.evId!==D.evId;});D.reservas=D.reservas.filter(function(r){return r.evId!==D.evId;});guardar();toast('Datos limpiados','ok');refrescarPagina();}
+function guardarPin(r){var v=(document.getElementById('pin-'+r)||{value:''}).value.trim();if(!v){toast('Ingresa el PIN','w');return;}D.pines[r]=v;guardar();pushConfig();renderConfig();toast('PIN actualizado','ok');}
+function limpiarDatos(){if(!confirm('¿Limpiar TODOS los datos del evento actual (en todos los dispositivos)?'))return;D.mesas=D.mesas.filter(function(m){return m.evId!==D.evId;});D.reservas=D.reservas.filter(function(r){return r.evId!==D.evId;});guardar();encolar('clearEvento',{});toast('Datos limpiados','ok');refrescarPagina();}
 
 // ════════ FORMULARIO RESERVA PÚBLICA ════════
 var qtysRes={};
@@ -1403,11 +1483,17 @@ mostrar('login');
 var params=new URLSearchParams(window.location.search);
 var evParam=params.get('ev');
 if(evParam){
+  D.evId=evParam;
   var match=D.eventos.find(function(e){return e.id===evParam;});
-  if(match){D.evId=evParam;D.eventos.forEach(function(e){e.activo=e.id===evParam;});}
+  if(match){D.eventos.forEach(function(e){e.activo=e.id===evParam;});}
   renderFormaReserva();
   mostrar('reserva-publica');
+  // Trae el menú y los datos del evento desde el servidor (el invitado puede no tenerlos)
+  if(D.gasUrl){ sincronizar(true); iniciarSync(); }
 }
+// Reanuda envíos pendientes de sesiones anteriores
+actualizarIndicador();
+procesarCola();
 </script>
 </body>
 </html>
