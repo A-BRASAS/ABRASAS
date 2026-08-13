@@ -316,7 +316,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
     </div>
     <div class="topbar-der">
       <span id="sync-dot" style="display:none;align-items:center;gap:4px;background:#3a2a10;border:1px solid rgba(232,95,26,.5);color:#E85F1A;border-radius:20px;padding:5px 10px;font-size:11px;font-weight:700" title="Cambios pendientes de enviar">⏳</span>
-      <div class="ev-chip" id="top-ev" onclick="abrirModal('m-evlist')">Sin evento</div>
+      <div class="ev-chip" id="top-ev" onclick="abrirModalEvlist()">Sin evento</div>
       <button class="btn-salir" onclick="salir()">Salir</button>
     </div>
   </div>
@@ -363,7 +363,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
     <div id="p-eventos" class="pagina">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
         <div class="titulo-sec" style="margin:0">📅 EVENTOS</div>
-        <button class="btn btn-p btn-sm" onclick="abrirModal('m-ev')">+ Nuevo</button>      </div>
+        <button class="btn btn-p btn-sm" onclick="abrirModalEvento()">+ Nuevo</button>      </div>
       <div id="ev-lista"></div>
     </div>
     <div id="p-menu" class="pagina">
@@ -438,7 +438,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
 
 <div class="modal-bg" id="m-ev">
   <div class="modal-caja">
-    <div class="modal-titulo">📅 NUEVO EVENTO <button class="modal-x" onclick="cerrarModal('m-ev')">✕</button></div>
+    <div class="modal-titulo"><span id="m-ev-titulo">📅 NUEVO EVENTO</span> <button class="modal-x" onclick="cerrarModal('m-ev')">✕</button></div>
     <div class="fgrid">
       <div class="fg"><label>Nombre</label><input type="text" class="fi" id="ev-nom" placeholder="Parrilla Laureles #12"></div>
       <div class="fg"><label>Fecha</label><input type="date" class="fi" id="ev-fecha"></div>
@@ -449,7 +449,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
       <div class="fg"><label>% venta en sitio</label><input type="number" class="fi" id="ev-sitio" value="10"></div>
     </div>
     <br>
-    <button class="btn btn-p btn-fw" onclick="guardarEvento()" style="padding:13px;font-size:15px">✅ CREAR EVENTO</button>
+    <button class="btn btn-p btn-fw" id="m-ev-btn" onclick="guardarEvento()" style="padding:13px;font-size:15px">✅ CREAR EVENTO</button>
   </div>
 </div>
 
@@ -1234,6 +1234,7 @@ function renderEventos() {
       '<div style="font-size:12px;color:#888;margin-top:3px">📅 '+(ev.fecha||'—')+' · 📍 '+(ev.lugar||'—')+' · 👥 '+cnt+'/'+ev.cupos+'</div></div>'+
       '<div style="display:flex;gap:6px;flex-shrink:0">'+
       (ev.activo?'<span class="badge badge-ok">Activo</span>':'<button class="btn btn-s btn-sm" onclick="activarEvento(\''+ev.id+'\')">Activar</button>')+
+      '<button class="btn btn-s btn-sm" onclick="abrirModalEvento(\''+ev.id+'\')">✏️</button>'+
       '<button class="btn btn-d btn-sm" onclick="eliminarEvento(\''+ev.id+'\')">🗑</button>'+
       '</div></div><hr>'+
       '<div style="font-size:12px;color:#888;margin-bottom:6px">🔗 Link de reservas:</div>'+
@@ -1245,13 +1246,38 @@ function renderEventos() {
   }).join('');
 }
 
+var editandoEvId = null;
+
+function abrirModalEvento(id) {
+  editandoEvId = id || null;
+  var ev = id ? D.eventos.find(function(e){return e.id===id;}) : null;
+  document.getElementById('m-ev-titulo').textContent = ev ? '📅 EDITAR EVENTO' : '📅 NUEVO EVENTO';
+  document.getElementById('m-ev-btn').textContent = ev ? '💾 GUARDAR CAMBIOS' : '✅ CREAR EVENTO';
+  document.getElementById('ev-nom').value   = ev ? (ev.nombre||'') : '';
+  document.getElementById('ev-fecha').value = ev ? (ev.fecha||'')  : '';
+  document.getElementById('ev-lugar').value = ev ? (ev.lugar||'')  : '';
+  document.getElementById('ev-cupos').value = ev ? (ev.cupos||90)  : 90;
+  document.getElementById('ev-sitio').value = ev ? (ev.sitio||10)  : 10;
+  abrirModal('m-ev');
+}
+
 function guardarEvento() {
   var nom=document.getElementById('ev-nom').value.trim();
   if(!nom){toast('Ingresa el nombre','w');return;}
-  var ev={id:uid(),nombre:nom,fecha:document.getElementById('ev-fecha').value,lugar:document.getElementById('ev-lugar').value,cupos:parseInt(document.getElementById('ev-cupos').value)||90,sitio:parseInt(document.getElementById('ev-sitio').value)||10,activo:false};
-  D.eventos.push(ev); guardar(); pushConfig();
-  cerrarModal('m-ev'); renderEventos();
-  toast('Evento creado: '+nom,'ok');
+  var datos={nombre:nom,fecha:document.getElementById('ev-fecha').value,lugar:document.getElementById('ev-lugar').value,cupos:parseInt(document.getElementById('ev-cupos').value)||90,sitio:parseInt(document.getElementById('ev-sitio').value)||10};
+  if(editandoEvId){
+    var ev=D.eventos.find(function(e){return e.id===editandoEvId;});
+    if(ev){ for(var k in datos) ev[k]=datos[k]; }
+    editandoEvId=null;
+    guardar(); pushConfig();
+    cerrarModal('m-ev'); renderEventos(); actualizarEvChip();
+    toast('Evento actualizado: '+nom,'ok');
+  } else {
+    datos.id=uid(); datos.activo=false;
+    D.eventos.push(datos); guardar(); pushConfig();
+    cerrarModal('m-ev'); renderEventos();
+    toast('Evento creado: '+nom,'ok');
+  }
 }
 
 function activarEvento(id) {
@@ -1450,50 +1476,11 @@ document.querySelectorAll('.modal-bg').forEach(function(o){
 });
 
 function abrirModalEvlist(){
-  document.getElementById('evlist-body').innerHTML=D.eventos.map(function(ev){
+  var cuerpo = D.eventos.length ? D.eventos.map(function(ev){
     return '<div class="mcard" style="cursor:pointer" onclick="seleccionarEvento(\''+ev.id+'\')">'+
       '<div class="mcard-top"><div class="mcard-info">'+
       '<div class="mcard-nom">'+ev.nombre+'</div>'+
       '<div class="mcard-sub">📅 '+(ev.fecha||'—')+' · 👥 '+ev.cupos+' cupos</div>'+
       '</div>'+(ev.activo?'<span class="badge badge-ok">Activo</span>':'')+
       '</div></div>';
-  }).join('');
-  document.getElementById('m-evlist').classList.add('abierto');
-}
-
-function seleccionarEvento(id){activarEvento(id);cerrarModal('m-evlist');refrescarPagina();}
-
-// ════════ TOAST ════════
-var toastTimer;
-function toast(msg,tipo){
-  var cols={ok:'#2a9d6e',w:'#F28C28',e:'#D64537'};
-  document.getElementById('tdot').style.background=cols[tipo]||cols.ok;
-  document.getElementById('tmsg').textContent=msg;
-  var t=document.getElementById('toast');
-  t.classList.add('visible');
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(function(){t.classList.remove('visible');},2800);
-}
-
-// ════════ INIT ════════
-cargar();
-mostrar('login');
-
-// Detectar link de reserva
-var params=new URLSearchParams(window.location.search);
-var evParam=params.get('ev');
-if(evParam){
-  D.evId=evParam;
-  var match=D.eventos.find(function(e){return e.id===evParam;});
-  if(match){D.eventos.forEach(function(e){e.activo=e.id===evParam;});}
-  renderFormaReserva();
-  mostrar('reserva-publica');
-  // Trae el menú y los datos del evento desde el servidor (el invitado puede no tenerlos)
-  if(D.gasUrl){ sincronizar(true); iniciarSync(); }
-}
-// Reanuda envíos pendientes de sesiones anteriores
-actualizarIndicador();
-procesarCola();
-</script>
-</body>
-</html>
+  }).join('') : '<div style="color:#888;f
