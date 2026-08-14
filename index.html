@@ -1483,4 +1483,45 @@ function abrirModalEvlist(){
       '<div class="mcard-sub">📅 '+(ev.fecha||'—')+' · 👥 '+ev.cupos+' cupos</div>'+
       '</div>'+(ev.activo?'<span class="badge badge-ok">Activo</span>':'')+
       '</div></div>';
-  }).join('') : '<div style="color:#888;f
+  }).join('') : '<div style="color:#888;font-size:13px;padding:10px 0">No hay eventos creados todavía.</div>';
+  cuerpo += '<button class="btn btn-p btn-fw" style="margin-top:10px" onclick="cerrarModal(\'m-evlist\');abrirModalEvento()">+ Nuevo evento</button>';
+  document.getElementById('evlist-body').innerHTML = cuerpo;
+  document.getElementById('m-evlist').classList.add('abierto');
+}
+
+function seleccionarEvento(id){activarEvento(id);cerrarModal('m-evlist');refrescarPagina();}
+
+// ════════ TOAST ════════
+var toastTimer;
+function toast(msg,tipo){
+  var cols={ok:'#2a9d6e',w:'#F28C28',e:'#D64537'};
+  document.getElementById('tdot').style.background=cols[tipo]||cols.ok;
+  document.getElementById('tmsg').textContent=msg;
+  var t=document.getElementById('toast');
+  t.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){t.classList.remove('visible');},2800);
+}
+
+// ════════ INIT ════════
+cargar();
+mostrar('login');
+
+// Detectar link de reserva
+var params=new URLSearchParams(window.location.search);
+var evParam=params.get('ev');
+if(evParam){
+  D.evId=evParam;
+  var match=D.eventos.find(function(e){return e.id===evParam;});
+  if(match){D.eventos.forEach(function(e){e.activo=e.id===evParam;});}
+  renderFormaReserva();
+  mostrar('reserva-publica');
+  // Trae el menú y los datos del evento desde el servidor (el invitado puede no tenerlos)
+  if(D.gasUrl){ sincronizar(true); iniciarSync(); }
+}
+// Reanuda envíos pendientes de sesiones anteriores
+actualizarIndicador();
+procesarCola();
+</script>
+</body>
+</html>
