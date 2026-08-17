@@ -531,11 +531,20 @@ function totalAd(mesa) {
   }, 0);
 }
 function totalMesa(mesa) { return totalRit(mesa) + totalAd(mesa); }
+// Al confirmar la llegada de una reserva se crea una mesa con los mismos
+// rituales. Para no contar doble, las reservas confirmadas que ya tienen su
+// mesa creada se excluyen de cupos, caja y porciones (la mesa es la que vale).
+function resConfirmadasSinMesa() {
+  var conMesa = {};
+  getMesas().forEach(function(m){ if(m.reservaId) conMesa[m.reservaId] = true; });
+  return getRes().filter(function(r){ return r.estado==='confirmada' && !conMesa[r.id]; });
+}
+
 function cuposOcupados() {
   var m = getMesas().filter(function(x){ return x.activa; }).reduce(function(s,x){
     return s + (x.rituales||[]).reduce(function(ss,r){ return ss+(r.qty||1); }, 0);
   }, 0);
-  var rc = getRes().filter(function(r){ return r.estado==='confirmada'; }).reduce(function(s,r){
+  var rc = resConfirmadasSinMesa().reduce(function(s,r){
     return s + (r.rituales||[]).reduce(function(ss,x){ return ss+(x.qty||1); }, 0);
   }, 0);
   var rp = getRes().filter(function(r){ return r.estado==='pendiente'; }).reduce(function(s,r){
@@ -856,14 +865,14 @@ function renderPanel() {
     var t = totalMesa(m);
     if(m.pago==='efectivo') cEf+=t; else if(m.pago==='transferencia') cTr+=t;
   });
-  getRes().filter(function(r){return r.estado==='confirmada';}).forEach(function(r){
+  resConfirmadasSinMesa().forEach(function(r){
     var t = totalRit(r);
     if(r.pago==='efectivo') cEf+=t; else if(r.pago==='transferencia') cTr+=t;
   });
   var byR = {};
   D.menu.rituales.forEach(function(r){ byR[r.id]=0; });
   getMesas().forEach(function(m){ (m.rituales||[]).forEach(function(r){ byR[r.rid]=(byR[r.rid]||0)+(r.qty||1); }); });
-  getRes().filter(function(r){return r.estado==='confirmada';}).forEach(function(r){ (r.rituales||[]).forEach(function(x){ byR[x.rid]=(byR[x.rid]||0)+(x.qty||1); }); });
+  resConfirmadasSinMesa().forEach(function(r){ (r.rituales||[]).forEach(function(x){ byR[x.rid]=(byR[x.rid]||0)+(x.qty||1); }); });
 
   document.getElementById('panel-stats').innerHTML =
     '<div class="stat"><div class="stat-n">'+ocp.total+'</div><div class="stat-l">Cupos ocupados</div></div>' +
@@ -1203,7 +1212,7 @@ function renderLogistica() {
   var libres=Math.max(0,cupos-ocp.total);
   var cEf=0,cTr=0;
   getMesas().forEach(function(m){var t=totalMesa(m);if(m.pago==='efectivo')cEf+=t;else if(m.pago==='transferencia')cTr+=t;});
-  getRes().filter(function(r){return r.estado==='confirmada';}).forEach(function(r){var t=totalRit(r);if(r.pago==='efectivo')cEf+=t;else if(r.pago==='transferencia')cTr+=t;});
+  resConfirmadasSinMesa().forEach(function(r){var t=totalRit(r);if(r.pago==='efectivo')cEf+=t;else if(r.pago==='transferencia')cTr+=t;});
   var pend=getRes().filter(function(r){return r.estado==='pendiente';});
   document.getElementById('log-stats').innerHTML=
     '<div class="stat"><div class="stat-n">'+ocp.total+'</div><div class="stat-l">Cupos ocupados</div></div>'+
@@ -1227,7 +1236,8 @@ function renderLogistica() {
 function renderEventos() {
   document.getElementById('ev-lista').innerHTML=D.eventos.map(function(ev){
     var link='https://a-brasas.github.io/ABRASAS/?ev='+ev.id;
-    var cnt=D.mesas.filter(function(m){return m.evId===ev.id&&m.activa;}).length+D.reservas.filter(function(r){return r.evId===ev.id&&r.estado==='confirmada';}).length;
+    var vinc={}; D.mesas.forEach(function(m){ if(m.evId===ev.id&&m.reservaId) vinc[m.reservaId]=true; });
+    var cnt=D.mesas.filter(function(m){return m.evId===ev.id&&m.activa;}).length+D.reservas.filter(function(r){return r.evId===ev.id&&r.estado==='confirmada'&&!vinc[r.id];}).length;
     return '<div class="card">'+
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'+
       '<div><div style="font-size:18px;font-weight:700;color:'+(ev.activo?'#E85F1A':'#C9C9C9')+'">'+ev.nombre+'</div>'+
