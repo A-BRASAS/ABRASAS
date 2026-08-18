@@ -1283,6 +1283,7 @@ function renderEventos() {
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
       '<button class="btn btn-s btn-sm" onclick="copiarLink(\''+ev.id+'\')">📋 Copiar link</button>'+
       '<button class="btn btn-s btn-sm" onclick="exportarReporte(\''+ev.id+'\')">📥 Exportar reporte</button>'+
+      '<button class="btn btn-s btn-sm" onclick="exportarExcel(\''+ev.id+'\')">📊 Exportar Excel</button>'+
       '</div></div>';
   }).join('');
 }
@@ -1345,8 +1346,9 @@ function exportarReporte(evId) {
   var mesas=D.mesas.filter(function(m){return m.evId===evId;});
   var reservas=D.reservas.filter(function(r){return r.evId===evId;});
   var cEf=0,cTr=0;
+  var vincRep={}; mesas.forEach(function(m){ if(m.reservaId) vincRep[m.reservaId]=true; });
   mesas.forEach(function(m){var t=totalMesa(m);if(m.pago==='efectivo')cEf+=t;else if(m.pago==='transferencia')cTr+=t;});
-  reservas.filter(function(r){return r.estado==='confirmada';}).forEach(function(r){var t=totalRit(r);if(r.pago==='efectivo')cEf+=t;else if(r.pago==='transferencia')cTr+=t;});
+  reservas.filter(function(r){return r.estado==='confirmada'&&!vincRep[r.id];}).forEach(function(r){var t=totalRit(r);if(r.pago==='efectivo')cEf+=t;else if(r.pago==='transferencia')cTr+=t;});
   var html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte '+ev.nombre+'</title><style>body{font-family:Arial;padding:30px;color:#222;}h1{color:#E85F1A;}h2{color:#8A5632;margin-top:24px;}table{width:100%;border-collapse:collapse;margin-top:8px;}th{background:#0A0A0A;color:#E85F1A;padding:8px 12px;text-align:left;font-size:12px;}td{padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;}.res{background:#f9f5f0;border-radius:8px;padding:16px;margin:16px 0;}.rfl{display:flex;justify-content:space-between;padding:4px 0;font-size:14px;}.total{font-size:22px;font-weight:700;color:#E85F1A;}</style></head><body>'+
     '<h1>🔥 A-BRASAS — Amigos & Parrilla</h1>'+
     '<h2>'+ev.nombre+'</h2><p>📅 '+(ev.fecha||'—')+' · 📍 '+(ev.lugar||'—')+' · Generado: '+new Date().toLocaleString('es-CO')+'</p>'+
@@ -1364,6 +1366,33 @@ function exportarReporte(evId) {
   a.download='Reporte-'+(ev.nombre||'evento').replace(/\s/g,'-')+'.html';
   a.click();
   toast('Reporte descargado ✓','ok');
+}
+
+function csvCampo(v){
+  v = (v===undefined||v===null) ? '' : String(v);
+  return '"' + v.replace(/"/g,'""') + '"';
+}
+
+function exportarExcel(evId) {
+  var ev=D.eventos.find(function(e){return e.id===evId;})||{};
+  var mesas=D.mesas.filter(function(m){return m.evId===evId;});
+  var reservas=D.reservas.filter(function(r){return r.evId===evId;});
+  var vinc={}; mesas.forEach(function(m){ if(m.reservaId) vinc[m.reservaId]=true; });
+  var filas=[['Tipo','Nombre','Teléfono','Personas','Mesa','Rituales','Estado','Pago','Hora','Total']];
+  mesas.forEach(function(m){
+    filas.push(['Mesa (in situ)', m.nombre, m.tel||'', m.personas||'', m.mesa||'', ritDesc(m.rituales), m.activa?(m.cerrada?'Cerrada':'Activa'):'Inactiva', m.pago||'', m.hora||'', totalMesa(m)]);
+  });
+  reservas.forEach(function(r){
+    var estado = r.estado==='confirmada' ? (vinc[r.id]?'Confirmada (en mesa)':'Confirmada') : 'Pendiente';
+    filas.push(['Reserva', r.nombre, r.tel||'', r.personas||'', r.mesa||'', ritDesc(r.rituales), estado, r.pago||'', r.hora||'', totalRit(r)]);
+  });
+  var csv = '\uFEFF' + filas.map(function(f){ return f.map(csvCampo).join(';'); }).join('\r\n');
+  var b=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download='A-Brasas-'+(ev.nombre||'evento').replace(/\s/g,'-')+'.csv';
+  a.click();
+  toast('Excel descargado ✓','ok');
 }
 
 // ════════ MENÚ ════════
