@@ -557,7 +557,7 @@ function cuposOcupados() {
 function guardar() {
   try {
     localStorage.setItem('ab6', JSON.stringify({
-      gasUrl:D.gasUrl, evId:D.evId,
+      gasUrl:D.gasUrl, urlManual:D.urlManual||false, evId:D.evId,
       eventos:D.eventos, mesas:D.mesas, reservas:D.reservas,
       menu:D.menu, pines:D.pines,
       cola:D.cola||[], configMod:D.configMod||0
@@ -567,10 +567,12 @@ function guardar() {
 function cargar() {
   try {
     var d = JSON.parse(localStorage.getItem('ab6') || '{}');
-    // Migración: reemplaza automáticamente la URL antigua del script
-    var URLS_VIEJAS = ['https://script.google.com/macros/s/AKfycbwDbK-SSa_EretEnrNHqg3ee1wgGQjYJrwxB6Wz2JkCRqULQ5mynBIaCOFNbR5FkxI/exec'];
-    if(d.gasUrl && URLS_VIEJAS.indexOf(d.gasUrl) >= 0) d.gasUrl = D.gasUrl;
+    // Migración: cualquier URL guardada distinta a la oficial se reemplaza
+    // automáticamente (dispositivos con URLs de despliegues anteriores),
+    // salvo que el usuario la haya escrito a mano en Config (urlManual)
+    if(d.gasUrl && d.gasUrl !== D.gasUrl && !d.urlManual) d.gasUrl = D.gasUrl;
     if(d.gasUrl) D.gasUrl = d.gasUrl;
+    if(d.urlManual) D.urlManual = true;
     if(d.evId) D.evId = d.evId;
     if(d.eventos) D.eventos = d.eventos;
     if(d.mesas) D.mesas = d.mesas;
@@ -735,8 +737,17 @@ function urlOp(op) {
 }
 
 // Procesa la cola en orden, una operación a la vez, con confirmación del servidor.
+var VIDA_MAX_DESTRUCTIVA = 10*60*1000; // 10 minutos
+
 function procesarCola() {
   if(opEnVuelo || !D.gasUrl || !(D.cola||[]).length) { actualizarIndicador(); return; }
+  // Descarta órdenes destructivas vencidas
+  var antes = D.cola.length;
+  D.cola = D.cola.filter(function(o){
+    return !(o.action==='clearEvento' && o.ts && (Date.now()-o.ts) > VIDA_MAX_DESTRUCTIVA);
+  });
+  if(D.cola.length !== antes) { guardar(); actualizarIndicador(); }
+  if(!D.cola.length) return;
   var op = D.cola[0];
   op.vuelo = true;
   opEnVuelo = true;
@@ -764,19 +775,33 @@ function procesarCola() {
 }
 
 // Aplica los datos del servidor SIN pisar cambios locales pendientes.
+var renderPendiente = false;
+
+function formularioEnUso() {
+  // El invitado está llenando la reserva pública: no tocar su pantalla
+  var pub = document.getElementById('reserva-publica');
+  if(!pub || pub.style.display !== 'block') {
+    if(!pub || !pub.classList.contains('activa')) return false;
+  }
+  var nom = document.getElementById('r-nom');
+  if(nom && nom.value.trim()) return true;
+  for(var k in qtysRes) { if(qtysRes[k] > 0) return true; }
+  return false;
+}
+
 function aplicarPull(data) {
   var cambioAlgo = false;
   if(!colaPendiente()) {
     // Conserva los datos locales de otros eventos; reemplaza solo el evento actual
     if(data.mesas) {
-      D.mesas = D.mesas.filter(function(m){ return String(m.evId)!==String(D.evId); })
+      var nm = D.mesas.filter(function(m){ return String(m.evId)!==String(D.evId); })
         .concat(data.mesas.filter(function(m){ return String(m.evId)===String(D.evId); }));
-      cambioAlgo = true;
+      if(JSON.stringify(nm) !== JSON.stringify(D.mesas)) { D.mesas = nm; cambioAlgo = true; }
     }
     if(data.reservas) {
-      D.reservas = D.reservas.filter(function(r){ return String(r.evId)!==String(D.evId); })
+      var nr = D.reservas.filter(function(r){ return String(r.evId)!==String(D.evId); })
         .concat(data.reservas.filter(function(r){ return String(r.evId)===String(D.evId); }));
-      cambioAlgo = true;
+      if(JSON.stringify(nr) !== JSON.stringify(D.reservas)) { D.reservas = nr; cambioAlgo = true; }
     }
   }
   // Config compartida (eventos, menú, PINes): gana la versión más reciente
@@ -795,9 +820,15 @@ function aplicarPull(data) {
   if(cambioAlgo) {
     guardar();
     actualizarEvChip();
-    refrescarPagina();
-    var pub = document.getElementById('reserva-publica');
-    if(pub && pub.style.display === 'block') renderFormaReserva();
+    var modalAbierto = document.querySelector('.modal-bg.abierto');
+    if(modalAbierto || formularioEnUso()) {
+      // No interrumpir al usuario: los datos ya se aplicaron,
+      // la pantalla se refresca cuando termine lo que está haciendo
+      renderPendiente = true;
+    } else {
+      refrescarPagina();
+      if(document.getElementById('res-platos')) renderFormaReserva();
+    }
   }
 }
 
@@ -1386,7 +1417,13 @@ function renderConfig() {
     '<button class="btn btn-d btn-sm" onclick="limpiarDatos()">🗑 Limpiar datos del evento</button></div></div>';
 }
 
-function guardarGas(){D.gasUrl=(document.getElementById('cfg-gas')||{value:''}).value.trim();guardar();if(D.gasUrl)iniciarSync();toast('URL guardada','ok');renderConfig();}
+function guardarGas(){
+  D.gasUrl=(document.getElementById('cfg-gas')||{value:''}).value.trim();
+  D.urlManual=true;
+  guardar();
+  if(D.gasUrl){iniciarSync();procesarCola();sincronizar(true);}
+  toast('URL guardada','ok');renderConfig();
+}
 function guardarPin(r){var v=(document.getElementById('pin-'+r)||{value:''}).value.trim();if(!v){toast('Ingresa el PIN','w');return;}D.pines[r]=v;guardar();pushConfig();renderConfig();toast('PIN actualizado','ok');}
 function limpiarDatos(){if(!confirm('¿Limpiar TODOS los datos del evento actual (en todos los dispositivos)?'))return;D.mesas=D.mesas.filter(function(m){return m.evId!==D.evId;});D.reservas=D.reservas.filter(function(r){return r.evId!==D.evId;});guardar();encolar('clearEvento',{});toast('Datos limpiados','ok');refrescarPagina();}
 
@@ -1396,6 +1433,7 @@ var qtysRes={};
 function irReserva(){renderFormaReserva();mostrar('reserva-publica');}
 
 function renderFormaReserva(){
+  if(!document.getElementById('res-platos')) return;
   var ev=getEv();
   document.getElementById('res-evnm').textContent=ev?ev.nombre:'Sin evento activo';
   document.getElementById('res-evdet').textContent=ev?((ev.fecha?'📅 '+ev.fecha+' ':'')+( ev.lugar?'📍 '+ev.lugar:'')):'';
@@ -1438,7 +1476,13 @@ function enviarReserva(){
   if(!nom){toast('Ingresa tu nombre','w');return;}
   if(!tel){toast('Ingresa tu WhatsApp','w');return;}
   var rits=Object.keys(qtysRes).filter(function(id){return qtysRes[id]>0;}).map(function(id){return{rid:id,qty:qtysRes[id]};});
-  if(!rits.length){toast('Selecciona al menos un plato','w');return;}
+  if(!rits.length){toast('Selecciona al menos un plato','w');var pl=document.getElementById('res-platos');if(pl)pl.scrollIntoView({behavior:'smooth'});return;}
+  var totalPlatos=rits.reduce(function(s,x){return s+x.qty;},0);
+  if(totalPlatos<pers){
+    toast('Indicaste '+pers+' personas pero solo '+totalPlatos+' plato'+(totalPlatos>1?'s':'')+'. Agrega los que faltan','w');
+    var pl2=document.getElementById('res-platos');if(pl2)pl2.scrollIntoView({behavior:'smooth'});
+    return;
+  }
   var r={id:uid(),evId:D.evId,nombre:nom,tel:tel,personas:pers,rituales:rits,obs:'',estado:'pendiente',hora:new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}),fechaRes:new Date().toLocaleDateString('es-CO')};
   D.reservas.push(r);
   pushReserva(r);
@@ -1480,7 +1524,13 @@ function abrirModal(id){
   var el = document.getElementById(id);
   if(el) el.classList.add('abierto');
 }
-function cerrarModal(id){document.getElementById(id).classList.remove('abierto');}
+function cerrarModal(id){
+  document.getElementById(id).classList.remove('abierto');
+  if(renderPendiente && !document.querySelector('.modal-bg.abierto')) {
+    renderPendiente = false;
+    refrescarPagina();
+  }
+}
 document.querySelectorAll('.modal-bg').forEach(function(o){
   o.addEventListener('click',function(e){if(e.target===o)o.classList.remove('abierto');});
 });
