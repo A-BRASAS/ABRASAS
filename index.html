@@ -432,6 +432,7 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
 <div class="modal-bg" id="m-cuenta">
   <div class="modal-caja">
     <div class="modal-titulo" id="m-cuenta-titulo">🪑 MESA <button class="modal-x" onclick="cerrarModal('m-cuenta')">✕</button></div>
+    <div id="m-cuenta-mesa"></div>
     <div id="m-cuenta-rituales"></div>
     <hr>
     <div style="font-size:13px;font-weight:700;color:#C17F4E;margin-bottom:10px;letter-spacing:.5px">ADICIONALES</div>
@@ -1150,6 +1151,19 @@ function abrirCuenta(id) {
   cuentaId = id; pagoCuenta = null;
   var m = D.mesas.find(function(x){ return x.id===id; }); if(!m) return;
   document.getElementById('m-cuenta-titulo').innerHTML = '🪑 MESA '+m.mesa+' — '+m.nombre+' <button class="modal-x" onclick="cerrarModal(\'m-cuenta\')">✕</button>';
+  // Cambio de mesa: el comensal puede moverse de lugar durante el evento
+  var zonaMesa = document.getElementById('m-cuenta-mesa');
+  if(!m.cerrada) {
+    zonaMesa.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;background:#1E1E1E;border-radius:8px;padding:10px 14px;margin-bottom:14px">'+
+      '<span style="font-size:12px;color:#888;white-space:nowrap">🪑 Mesa asignada</span>'+
+      '<input type="number" min="1" class="fi" id="cm-mesa" value="'+(m.mesa||'')+'" style="flex:1;padding:8px 10px;font-size:15px;font-weight:700;text-align:center">'+
+      '<button class="btn btn-s btn-sm" onclick="cambiarMesa(\''+id+'\')">Cambiar</button>'+
+      '</div>';
+  } else {
+    zonaMesa.innerHTML = '';
+  }
+
   // Rituales: editables mientras la cuenta esté abierta, para agregar
   // platos extra pedidos en el sitio (y bebidas/adicionales van abajo)
   if(!m.cerrada) {
@@ -1212,6 +1226,30 @@ function selPagoCuenta(tipo) {
   var ef=document.getElementById('cp-ef'), tr=document.getElementById('cp-tr');
   if(ef) ef.classList.toggle('sel', tipo==='efectivo');
   if(tr) tr.classList.toggle('sel', tipo==='transferencia');
+}
+
+// Cambia el número de mesa de un comensal ya registrado (se movió de lugar).
+// Mantiene alineada la reserva de origen y sincroniza a los demás dispositivos.
+function cambiarMesa(mesaId) {
+  var m = D.mesas.find(function(x){return x.id===mesaId;}); if(!m||m.cerrada) return;
+  var nueva = (document.getElementById('cm-mesa')||{value:''}).value.trim();
+  if(!nueva){ toast('Escribe el número de mesa','w'); return; }
+  if(String(nueva)===String(m.mesa)){ toast('Ya está en la mesa '+nueva,'i'); return; }
+  var ocupada = getMesas().filter(function(x){
+    return x.id!==mesaId && x.activa && String(x.mesa)===String(nueva);
+  });
+  if(ocupada.length && !confirm('La mesa '+nueva+' ya tiene registrado a '+ocupada[0].nombre+'.\n\n¿Aun así quieres asignarla? (pueden compartir mesa)')) return;
+  var anterior = m.mesa;
+  m.mesa = nueva;
+  guardar();
+  pushMesa(m);
+  if(m.reservaId){
+    var ro=D.reservas.find(function(x){return x.id===m.reservaId;});
+    if(ro){ ro.mesa=nueva; pushReserva(ro); }
+  }
+  abrirCuenta(mesaId);
+  renderRegistro(); renderReservas(); renderPanel();
+  toast(m.nombre+': mesa '+anterior+' → '+nueva,'ok');
 }
 
 // Agrega o quita platos (rituales) de una mesa con la cuenta abierta.
