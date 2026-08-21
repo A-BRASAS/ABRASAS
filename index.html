@@ -1458,6 +1458,7 @@ function renderEventos() {
       '<button class="btn btn-s btn-sm" onclick="copiarLink(\''+ev.id+'\')">📋 Copiar link</button>'+
       '<button class="btn btn-s btn-sm" onclick="exportarReporte(\''+ev.id+'\')">📥 Exportar reporte</button>'+
       '<button class="btn btn-s btn-sm" onclick="exportarExcel(\''+ev.id+'\')">📊 Exportar Excel</button>'+
+      '<button class="btn btn-s btn-sm" onclick="generarHojaReporte(\''+ev.id+'\',this)">📑 Hoja de reporte</button>'+
       '</div></div>';
   }).join('');
 }
@@ -1540,6 +1541,25 @@ function exportarReporte(evId) {
   a.download='Reporte-'+(ev.nombre||'evento').replace(/\s/g,'-')+'.html';
   a.click();
   toast('Reporte descargado ✓','ok');
+}
+
+// Pide al servidor que arme la hoja formateada dentro del Google Sheets
+function generarHojaReporte(evId, btn) {
+  if(!D.gasUrl){ toast('Sincronización no configurada','w'); return; }
+  var txtOrig = btn ? btn.innerHTML : '';
+  if(btn){ btn.innerHTML='⏳ Generando...'; btn.disabled=true; }
+  fetch(D.gasUrl+'?action=reporte&evId='+encodeURIComponent(evId)+'&t='+Date.now())
+  .then(function(r){ return r.text(); })
+  .then(function(t){
+    var d=null; try{ d=JSON.parse(t); }catch(e){}
+    if(d&&d.ok) toast('Hoja "'+d.hoja+'" lista en Google Sheets ('+d.registros+' registros)','ok');
+    else toast('No se pudo generar: '+((d&&d.error)||'error del servidor'),'e');
+    if(btn){ btn.innerHTML=txtOrig; btn.disabled=false; }
+  })
+  .catch(function(){
+    toast('Sin conexión con el servidor','e');
+    if(btn){ btn.innerHTML=txtOrig; btn.disabled=false; }
+  });
 }
 
 function csvCampo(v){
