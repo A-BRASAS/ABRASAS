@@ -445,6 +445,18 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); color: #
   </div>
 </div>
 
+<div class="modal-bg" id="m-dividir">
+  <div class="modal-caja">
+    <div class="modal-titulo">✂️ DIVIDIR CUENTA <button class="modal-x" onclick="cerrarModal('m-dividir')">✕</button></div>
+    <div id="dv-info" style="font-size:13px;color:#C9C9C9;margin-bottom:14px;line-height:1.5"></div>
+    <div class="fg"><label>Nombre de la persona (cuenta nueva)</label><input type="text" class="fi" id="dv-nom" placeholder="Nombre"></div>
+    <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Platos que pasan a su cuenta</div>
+    <div id="dv-rits"></div>
+    <div id="dv-resumen" style="margin:14px 0;padding:12px;background:#1E1E1E;border-radius:8px;font-size:13px;color:#C9C9C9;line-height:1.7"></div>
+    <button class="btn btn-p btn-fw" onclick="confirmarDividir()" style="padding:13px;font-size:15px">✂️ CREAR CUENTA SEPARADA</button>
+  </div>
+</div>
+
 <div class="modal-bg" id="m-ev">
   <div class="modal-caja">
     <div class="modal-titulo">📅 NUEVO EVENTO <button class="modal-x" onclick="cerrarModal('m-ev')">✕</button></div>
@@ -544,17 +556,89 @@ function totalAd(mesa) {
   }, 0);
 }
 function totalMesa(mesa) { return totalRit(mesa) + totalAd(mesa); }
+// ════════ CUPOS, PLATOS Y CAJA ════════
+// Reglas:
+//  - Una persona ocupa su cupo desde que se registra hasta que termina el evento,
+//    aunque ya haya pagado y cerrado su cuenta (el plato ya se consumió).
+//  - Una reserva confirmada ya tiene su propia mesa: se cuenta UNA sola vez (la mesa).
+//  - Una reserva pendiente tiene el plato apartado: se descuenta de lo disponible.
+//  - En caja solo cuenta como cobrado lo de las cuentas CERRADAS; lo de las abiertas es "por cobrar".
+function esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function stockDe(rid) {
+  var ev = getEv();
+  var v = (ev && ev.stock) ? ev.stock[rid] : undefined;
+  if(v === undefined || v === null || v === '') return null;
+  v = Number(v);
+  return isNaN(v) ? null : v;
+}
+
+function resumenPlatos() {
+  var porR = {};
+  D.menu.rituales.forEach(function(r){ porR[r.id] = {vend:0, pend:0}; });
+  var abiertos = 0, cerrados = 0, pend = 0;
+  getMesas().forEach(function(m) {
+    (m.rituales||[]).forEach(function(x) {
+      var q = x.qty || 1;
+      if(!porR[x.rid]) porR[x.rid] = {vend:0, pend:0};
+      porR[x.rid].vend += q;
+      if(m.cerrada) cerrados += q; else abiertos += q;
+    });
+  });
+  getRes().filter(function(r){ return r.estado === 'pendiente'; }).forEach(function(r) {
+    (r.rituales||[]).forEach(function(x) {
+      var q = x.qty || 1;
+      if(!porR[x.rid]) porR[x.rid] = {vend:0, pend:0};
+      porR[x.rid].pend += q;
+      pend += q;
+    });
+  });
+  return {porR:porR, abiertos:abiertos, cerrados:cerrados, pend:pend};
+}
+
 function cuposOcupados() {
-  var m = getMesas().filter(function(x){ return x.activa; }).reduce(function(s,x){
-    return s + (x.rituales||[]).reduce(function(ss,r){ return ss+(r.qty||1); }, 0);
+  var r = resumenPlatos();
+  var total = r.abiertos + r.cerrados;
+  return {m:total, rc:0, rp:r.pend, total:total, abiertos:r.abiertos, cerrados:r.cerrados};
+}
+
+// Platos disponibles de un ritual (null = sin límite definido)
+function dispRitual(rid, res) {
+  var s = stockDe(rid);
+  if(s === null) return null;
+  var p = (res || resumenPlatos()).porR[rid] || {vend:0, pend:0};
+  return s - p.vend - p.pend;
+}
+
+function calcCaja(mesas) {
+  var o = {ef:0, tr:0, pend:0, nAb:0, vendido:0};
+  mesas.forEach(function(m) {
+    var t = totalMesa(m);
+    o.vendido += t;
+    if(m.cerrada) {
+      if(m.pago === 'efectivo') o.ef += t;
+      else if(m.pago === 'transferencia') o.tr += t;
+    } else { o.pend += t; o.nAb++; }
+  });
+  o.cobrado = o.ef + o.tr;
+  return o;
+}
+
+function ritCorto(rits) {
+  return (rits||[]).map(function(r) {
+    var rit = getRit(r.rid);
+    return rit ? (r.qty||1) + '× ' + rit.nombre : '';
+  }).filter(Boolean).join(', ');
+}
+
+function platosEvento(evId) {
+  return D.mesas.filter(function(m){ return m.evId === evId; }).reduce(function(s, m) {
+    return s + (m.rituales||[]).reduce(function(ss, r){ return ss + (r.qty||1); }, 0);
   }, 0);
-  var rc = getRes().filter(function(r){ return r.estado==='confirmada'; }).reduce(function(s,r){
-    return s + (r.rituales||[]).reduce(function(ss,x){ return ss+(x.qty||1); }, 0);
-  }, 0);
-  var rp = getRes().filter(function(r){ return r.estado==='pendiente'; }).reduce(function(s,r){
-    return s + (r.rituales||[]).reduce(function(ss,x){ return ss+(x.qty||1); }, 0);
-  }, 0);
-  return {m:m, rc:rc, rp:rp, total:m+rc};
 }
 
 // ════════ STORAGE ════════
@@ -1059,52 +1143,101 @@ function pushMesa(mesa)   { encolar({t: 'save', h: 'Mesas',    id: mesa.id, evId
 function pushReserva(res) { encolar({t: 'save', h: 'Reservas', id: res.id,  evId: res.evId}); }
 
 // ════════ PANEL ════════
+function estadoRitual(disp) {
+  if(disp === null) return {txt:'', col:'#C17F4E'};
+  if(disp > 3)  return {txt:'Quedan ' + disp, col:'#4fc99e'};
+  if(disp > 0)  return {txt:'Quedan ' + disp, col:'#F28C28'};
+  if(disp === 0) return {txt:'AGOTADO', col:'#f07c72'};
+  return {txt:'Sobrevendido ' + (-disp), col:'#f07c72'};
+}
+
+function htmlPorRitual(res, ocpTotal) {
+  return D.menu.rituales.map(function(r) {
+    var p = res.porR[r.id] || {vend:0, pend:0};
+    var s = stockDe(r.id);
+    if(s === null) {
+      var pc = ocpTotal > 0 ? Math.min(100, Math.round(p.vend/ocpTotal*100)) : 0;
+      return '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:#C9C9C9">'+esc(r.nombre)+'</span><span style="color:#C17F4E;font-weight:700">'+p.vend+' vendidos</span></div><div class="pbar"><div class="pfill" style="width:'+pc+'%"></div></div>'+
+        '<div style="font-size:10px;color:#666;margin-top:3px">Sin tope definido (Menú → platos disponibles)</div></div>';
+    }
+    var disp = s - p.vend - p.pend;
+    var st = estadoRitual(disp);
+    var usado = p.vend + p.pend;
+    var pct = s > 0 ? Math.min(100, Math.round(usado/s*100)) : 100;
+    return '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:#C9C9C9">'+esc(r.nombre)+'</span><span style="color:'+st.col+';font-weight:700">'+st.txt+'</span></div>'+
+      '<div class="pbar"><div class="pfill" style="width:'+pct+'%;'+(disp<=0?'background:#D64537':'')+'"></div></div>'+
+      '<div style="font-size:10px;color:#888;margin-top:3px">Vendidos '+p.vend+' · Reservados '+p.pend+' · Total '+s+'</div></div>';
+  }).join('');
+}
+
+function htmlCuentasAbiertas() {
+  var abiertas = getMesas().filter(function(m){ return !m.cerrada; });
+  var titulo = '<div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">🪑 Cuentas abiertas — saldo pendiente</div>';
+  if(!abiertas.length) return '<div class="card">'+titulo+'<div class="alert alert-ok">✅ No hay cuentas abiertas</div></div>';
+  var grupos = {};
+  abiertas.forEach(function(m) {
+    var k = String(m.mesa);
+    if(!grupos[k]) grupos[k] = {mesa:k, cuentas:[], saldo:0};
+    grupos[k].cuentas.push(m);
+    grupos[k].saldo += totalMesa(m);
+  });
+  var lista = Object.keys(grupos).map(function(k){ return grupos[k]; }).sort(function(a, b) {
+    var na = parseInt(a.mesa), nb = parseInt(b.mesa);
+    if(isNaN(na) || isNaN(nb)) return a.mesa < b.mesa ? -1 : 1;
+    return na - nb;
+  });
+  var total = lista.reduce(function(s, g){ return s + g.saldo; }, 0);
+  var puede = D.rol !== 'logistica';
+  return '<div class="card">'+titulo+
+    lista.map(function(g) {
+      return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+        '<span style="font-weight:700;color:#F0EBE3">Mesa '+esc(g.mesa)+' <span style="font-size:11px;color:#888;font-weight:400">'+(g.cuentas.length>1?g.cuentas.length+' cuentas':'1 cuenta')+'</span></span>'+
+        '<span style="font-weight:700;color:#F28C28">'+peso(g.saldo)+'</span></div>'+
+        g.cuentas.map(function(m) {
+          return '<div '+(puede?'onclick="abrirCuenta(\''+m.id+'\')" style="cursor:pointer;':'style="')+'display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#C9C9C9;padding:3px 0 3px 12px">'+
+            '<span>'+esc(m.nombre)+' · <span style="color:#888">'+esc(ritCorto(m.rituales))+'</span></span><span>'+peso(totalMesa(m))+'</span></div>';
+        }).join('')+'</div>';
+    }).join('')+
+    '<div class="ct" style="font-size:18px"><span>POR COBRAR</span><span style="color:#F28C28">'+peso(total)+'</span></div></div>';
+}
+
 function renderPanel() {
   var ev = getEv();
   var cupos = ev ? ev.cupos : 90;
   var ocp = cuposOcupados();
-  var libres = Math.max(0, cupos - ocp.total);
+  var res = resumenPlatos();
+  var libres = Math.max(0, cupos - ocp.total - ocp.rp);
   var pct = cupos > 0 ? Math.min(100, Math.round(ocp.total/cupos*100)) : 0;
-  var cEf=0, cTr=0;
-  getMesas().forEach(function(m){
-    var t = totalMesa(m);
-    if(m.pago==='efectivo') cEf+=t; else if(m.pago==='transferencia') cTr+=t;
-  });
-  getRes().filter(function(r){return r.estado==='confirmada';}).forEach(function(r){
-    var t = totalRit(r);
-    if(r.pago==='efectivo') cEf+=t; else if(r.pago==='transferencia') cTr+=t;
-  });
-  var byR = {};
-  D.menu.rituales.forEach(function(r){ byR[r.id]=0; });
-  getMesas().forEach(function(m){ (m.rituales||[]).forEach(function(r){ byR[r.rid]=(byR[r.rid]||0)+(r.qty||1); }); });
-  getRes().filter(function(r){return r.estado==='confirmada';}).forEach(function(r){ (r.rituales||[]).forEach(function(x){ byR[x.rid]=(byR[x.rid]||0)+(x.qty||1); }); });
+  var caja = calcCaja(getMesas());
 
   document.getElementById('panel-stats').innerHTML =
     '<div class="stat"><div class="stat-n">'+ocp.total+'</div><div class="stat-l">Cupos ocupados</div></div>' +
     '<div class="stat"><div class="stat-n" style="'+(libres<10?'color:#F28C28':'')+'">'+libres+'</div><div class="stat-l">Cupos disponibles</div></div>' +
     '<div class="stat"><div class="stat-n">'+ocp.rp+'</div><div class="stat-l">Reservas pendientes</div></div>' +
-    '<div class="stat"><div class="stat-n" style="font-size:18px">'+peso(cEf+cTr)+'</div><div class="stat-l">Caja total</div></div>';
+    '<div class="stat"><div class="stat-n" style="font-size:18px;color:#4fc99e">'+peso(caja.cobrado)+'</div><div class="stat-l">Cobrado en caja</div></div>' +
+    '<div class="stat"><div class="stat-n" style="font-size:18px;color:#F28C28">'+peso(caja.pend)+'</div><div class="stat-l">Por cobrar</div></div>';
 
   document.getElementById('panel-cuerpo').innerHTML =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">'+
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">📊 Ocupación</div>'+
-    '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span style="color:#888">Rituales confirmados</span><span style="color:#E85F1A;font-weight:700">'+ocp.total+' / '+cupos+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span style="color:#888">Platos vendidos</span><span style="color:#E85F1A;font-weight:700">'+ocp.total+' / '+cupos+'</span></div>'+
     '<div class="pbar"><div class="pfill" style="width:'+pct+'%"></div></div>'+
     '<div style="font-size:11px;color:#888;margin-top:5px">'+pct+'% de ocupación</div>'+
     '<div style="margin-top:10px">'+
-    '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:#888">In situ</span><span>'+ocp.m+'</span></div>'+
-    '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:#888">Reservas confirmadas</span><span>'+ocp.rc+'</span></div>'+
-    '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="color:#888">Reservas pendientes</span><span style="color:#F28C28">'+ocp.rp+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:#888">En cuentas abiertas</span><span>'+ocp.abiertos+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:#888">En cuentas cerradas</span><span>'+ocp.cerrados+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="color:#888">Apartados por reservas pendientes</span><span style="color:#F28C28">'+ocp.rp+'</span></div>'+
     '</div></div>'+
-    '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">🥩 Por ritual</div>'+
-    D.menu.rituales.map(function(r){
-      var cnt=byR[r.id]||0, p=ocp.total>0?Math.round(cnt/ocp.total*100):0;
-      return '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:#C9C9C9">'+r.nombre+'</span><span style="color:#C17F4E;font-weight:700">'+cnt+' porciones</span></div><div class="pbar"><div class="pfill" style="width:'+p+'%"></div></div></div>';
-    }).join('') + '</div></div>'+
+    '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">🥩 Platos por ritual</div>'+
+    htmlPorRitual(res, ocp.total) + '</div></div>'+
+    htmlCuentasAbiertas() +
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">💰 Caja</div>'+
-    '<div class="cr"><span>💵 Efectivo</span><span style="color:#4fc99e;font-weight:700">'+peso(cEf)+'</span></div>'+
-    '<div class="cr"><span>📲 Transferencia</span><span style="color:#E85F1A;font-weight:700">'+peso(cTr)+'</span></div>'+
-    '<div class="ct"><span>TOTAL</span><span>'+peso(cEf+cTr)+'</span></div></div>';
+    '<div class="cr"><span>💵 Efectivo cobrado</span><span style="color:#4fc99e;font-weight:700">'+peso(caja.ef)+'</span></div>'+
+    '<div class="cr"><span>📲 Transferencia cobrada</span><span style="color:#E85F1A;font-weight:700">'+peso(caja.tr)+'</span></div>'+
+    '<div class="ct"><span>COBRADO</span><span>'+peso(caja.cobrado)+'</span></div>'+
+    '<div class="cr"><span>⏳ Por cobrar ('+caja.nAb+' cuenta'+(caja.nAb===1?'':'s')+' abierta'+(caja.nAb===1?'':'s')+')</span><span style="color:#F28C28;font-weight:700">'+peso(caja.pend)+'</span></div>'+
+    '<div class="cr" style="border-bottom:none"><span style="color:#888">Total vendido (cobrado + por cobrar)</span><span style="color:#C9C9C9;font-weight:700">'+peso(caja.vendido)+'</span></div></div>';
 }
 
 // ════════ REGISTRO ════════
@@ -1141,19 +1274,34 @@ function abrirModalRegistro() {
       '<div style="flex:1"><div style="font-size:14px;font-weight:700;color:#E85F1A">'+r.nombre+'</div>'+
       '<div style="font-size:12px;color:#C9C9C9;margin-top:2px">'+r.principal+'</div>'+
       '<div style="font-size:11px;color:#888">'+r.entrada+' · '+r.guarnicion+'</div>'+
-      '<div style="font-size:12px;color:#C17F4E;font-weight:700;margin-top:3px">'+peso(r.precio)+' c/u</div></div>'+
+      '<div style="font-size:12px;color:#C17F4E;font-weight:700;margin-top:3px">'+peso(r.precio)+' c/u</div>'+
+      '<div id="qd-'+r.id+'" style="font-size:12px;font-weight:700;margin-top:3px"></div></div>'+
       '<div class="qc"><button class="qb" onclick="chgQR(\''+r.id+'\',-1)">−</button>'+
       '<span class="qn" id="qr-'+r.id+'">0</span>'+
       '<button class="qb" onclick="chgQR(\''+r.id+'\',1)">+</button></div></div>';
   }).join('') + '<div id="mr-sub-txt" style="text-align:right;font-size:12px;color:#888;padding-top:6px"></div>';
   ['pay-efectivo','pay-transferencia'].forEach(function(id){ var e=document.getElementById(id);if(e)e.classList.remove('sel'); });
   document.getElementById('mr-subtotal').textContent = '';
+  D.menu.rituales.forEach(function(r){ actualizarQuedan(r.id); });
   abrirModal('m-reg');
+}
+
+// Línea "Quedan N" bajo cada ritual al registrar (descuenta lo que se está eligiendo ahora)
+function actualizarQuedan(rid) {
+  var el = document.getElementById('qd-'+rid); if(!el) return;
+  var d = dispRitual(rid);
+  if(d === null) { el.textContent = ''; return; }
+  var q = d - (qtysRitual[rid] || 0);
+  if(q > 3)       { el.textContent = 'Quedan ' + q; el.style.color = '#4fc99e'; }
+  else if(q > 0)  { el.textContent = 'Quedan ' + q; el.style.color = '#F28C28'; }
+  else if(q === 0){ el.textContent = 'Quedan 0 (agotado)'; el.style.color = '#f07c72'; }
+  else            { el.textContent = '⚠️ Faltan ' + (-q) + ' (sobreventa)'; el.style.color = '#f07c72'; }
 }
 
 function chgQR(rid, d) {
   qtysRitual[rid] = Math.max(0, (qtysRitual[rid]||0) + d);
   var el = document.getElementById('qr-'+rid); if(el) el.textContent = qtysRitual[rid];
+  actualizarQuedan(rid);
   var t = 0;
   Object.keys(qtysRitual).forEach(function(id){ var r=getRit(id);if(r)t+=r.precio*qtysRitual[id]; });
   var sub = document.getElementById('mr-sub-txt'); if(sub) sub.textContent = t>0?'Subtotal: '+peso(t):'';
@@ -1175,6 +1323,15 @@ function guardarRegistro() {
   if(!pagoSeleccionado){ toast('Selecciona la forma de pago','w'); return; }
   var rits = Object.keys(qtysRitual).filter(function(id){ return qtysRitual[id]>0; }).map(function(id){ return {rid:id,qty:qtysRitual[id]}; });
   if(!rits.length){ toast('Selecciona al menos 1 plato','w'); return; }
+  var resP = resumenPlatos(), faltan = [];
+  rits.forEach(function(x) {
+    var d = dispRitual(x.rid, resP);
+    if(d !== null && x.qty > d) {
+      var rt = getRit(x.rid);
+      faltan.push((rt ? rt.nombre : x.rid) + ': quedan ' + Math.max(0, d) + ' y estás registrando ' + x.qty);
+    }
+  });
+  if(faltan.length && !confirm('⚠️ No hay suficientes platos:\n\n' + faltan.join('\n') + '\n\n¿Registrar de todas formas?')) return;
   var m = {
     id:uid(), evId:D.evId, nombre:nom, mesa:mesa, tel:tel, obs:obs,
     rituales:rits,
@@ -1212,11 +1369,18 @@ function renderMesas() {
   });
   var el = document.getElementById('mesas-lista');
   if(!lista.length){ el.innerHTML='<div class="alert alert-i">Sin mesas '+filtroMesa+'.</div>'; return; }
+  var porMesa = {};
+  getMesas().forEach(function(m){ porMesa[String(m.mesa)] = (porMesa[String(m.mesa)]||0) + 1; });
+  lista = lista.slice().sort(function(a, b) {
+    var na = parseInt(a.mesa), nb = parseInt(b.mesa);
+    if(!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+    return String(a.nombre).localeCompare(String(b.nombre));
+  });
   el.innerHTML = lista.map(function(m){
     return '<div class="mcard"><div class="mcard-top">'+
       '<div class="mesa-num" style="'+(m.cerrada?'opacity:.5':'')+'">'+m.mesa+'</div>'+
       '<div class="mcard-info">'+
-      '<div class="mcard-nom">'+m.nombre+' '+(m.cerrada?'<span class="badge badge-gy">Cerrada</span>':'')+'</div>'+
+      '<div class="mcard-nom">'+m.nombre+' '+(m.cerrada?'<span class="badge badge-gy">Cerrada</span>':'<span class="badge badge-warn">Abierta</span>')+(porMesa[String(m.mesa)]>1?' <span class="badge badge-gy">'+porMesa[String(m.mesa)]+' cuentas en la mesa</span>':'')+'</div>'+
       '<div class="mcard-sub">'+ritDesc(m.rituales)+'</div>'+
       (m.obs?'<div class="mcard-obs">📝 '+m.obs+'</div>':'')+
       '<div class="mcard-tags">'+(m.pago?'<span class="badge badge-cb">'+(m.pago==='efectivo'?'💵 Efectivo':'📲 Transferencia')+'</span>':'')+'</div>'+
@@ -1259,12 +1423,94 @@ function abrirCuenta(id) {
       '</div>';
     document.getElementById('m-cuenta-btns').innerHTML =
       '<button class="btn btn-ok" onclick="cerrarCuenta(\''+id+'\')">💳 Cerrar cuenta</button>'+
-      '<button class="btn btn-s" onclick="cerrarModal(\'m-cuenta\')">Cerrar</button>';
+      '<button class="btn btn-s" onclick="cerrarModal(\'m-cuenta\')">Cerrar</button>'+
+      (totalPlatos(m)>1?'<button class="btn btn-s" style="grid-column:1/-1" onclick="abrirDividir(\''+id+'\')">✂️ Dividir cuenta (separar a una persona)</button>':'');
   } else {
     document.getElementById('m-cuenta-pago').innerHTML='';
     document.getElementById('m-cuenta-btns').innerHTML='<button class="btn btn-s btn-fw" onclick="cerrarModal(\'m-cuenta\')">Cerrar</button>';
   }
   abrirModal('m-cuenta');
+}
+
+// ── Dividir cuenta: en una mesa puede haber varias personas con cuentas independientes ──
+var dividirId = null, qtysDiv = {};
+
+function totalPlatos(m) {
+  return (m.rituales||[]).reduce(function(s, r){ return s + (r.qty||1); }, 0);
+}
+
+function abrirDividir(id) {
+  var m = D.mesas.find(function(x){ return x.id === id; });
+  if(!m || m.cerrada) return;
+  dividirId = id; qtysDiv = {};
+  document.getElementById('dv-nom').value = '';
+  document.getElementById('dv-info').innerHTML =
+    'Mesa <b>'+esc(m.mesa)+'</b> · cuenta de <b>'+esc(m.nombre)+'</b> ('+esc(ritCorto(m.rituales))+').<br>'+
+    '<span style="color:#888">Elige cuántos platos pasan a la cuenta nueva. Siguen en la misma mesa y cada cuenta se cierra por separado. Los adicionales se quedan en la cuenta original (puedes agregarle a la nueva desde Gestionar).</span>';
+  document.getElementById('dv-rits').innerHTML = (m.rituales||[]).map(function(x) {
+    var rit = getRit(x.rid); if(!rit) return '';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(193,127,78,.2)">'+
+      '<div><div style="font-size:14px;font-weight:700;color:#E85F1A">'+esc(rit.nombre)+'</div><div style="font-size:11px;color:#888">Tiene '+(x.qty||1)+' · '+peso(rit.precio)+' c/u</div></div>'+
+      '<div class="qc"><button class="qb" onclick="chgDiv(\''+x.rid+'\',-1)">−</button><span class="qn" id="dv-q-'+x.rid+'">0</span><button class="qb" onclick="chgDiv(\''+x.rid+'\',1)">+</button></div></div>';
+  }).join('');
+  actualizarDividir();
+  abrirModal('m-dividir');
+}
+
+function chgDiv(rid, d) {
+  var m = D.mesas.find(function(x){ return x.id === dividirId; }); if(!m) return;
+  var tiene = ((m.rituales||[]).find(function(x){ return x.rid === rid; }) || {qty:0}).qty || 0;
+  var movidos = Object.keys(qtysDiv).reduce(function(s, k){ return s + qtysDiv[k]; }, 0);
+  var actual = qtysDiv[rid] || 0;
+  var nuevo = actual + d;
+  if(nuevo < 0 || nuevo > tiene) return;
+  // La cuenta original debe conservar al menos 1 plato
+  if(d > 0 && movidos + 1 > totalPlatos(m) - 1) { toast('La cuenta original debe quedarse con al menos 1 plato','w'); return; }
+  qtysDiv[rid] = nuevo;
+  var el = document.getElementById('dv-q-'+rid); if(el) el.textContent = nuevo;
+  actualizarDividir();
+}
+
+function subtotalRituales(rits) {
+  return (rits||[]).reduce(function(s, x) { var r = getRit(x.rid); return s + (r ? r.precio*(x.qty||1) : 0); }, 0);
+}
+
+function actualizarDividir() {
+  var m = D.mesas.find(function(x){ return x.id === dividirId; }); if(!m) return;
+  var mov = Object.keys(qtysDiv).filter(function(k){ return qtysDiv[k] > 0; }).map(function(k){ return {rid:k, qty:qtysDiv[k]}; });
+  var tNueva = subtotalRituales(mov);
+  var tOrig = totalMesa(m) - tNueva;
+  document.getElementById('dv-resumen').innerHTML =
+    'Cuenta nueva: <b style="color:#E85F1A">'+peso(tNueva)+'</b> '+(mov.length?'('+esc(ritCorto(mov))+')':'')+'<br>'+
+    'Cuenta de '+esc(m.nombre)+' queda en: <b style="color:#E85F1A">'+peso(tOrig)+'</b>';
+}
+
+function confirmarDividir() {
+  var m = D.mesas.find(function(x){ return x.id === dividirId; }); if(!m || m.cerrada) return;
+  var nom = document.getElementById('dv-nom').value.trim();
+  if(!nom){ toast('Escribe el nombre de la persona','w'); return; }
+  var mov = Object.keys(qtysDiv).filter(function(k){ return qtysDiv[k] > 0; }).map(function(k){ return {rid:k, qty:qtysDiv[k]}; });
+  if(!mov.length){ toast('Elige al menos 1 plato para la cuenta nueva','w'); return; }
+  // Quitar los platos de la cuenta original
+  mov.forEach(function(x) {
+    var o = m.rituales.find(function(r){ return r.rid === x.rid; });
+    if(o) o.qty = (o.qty||1) - x.qty;
+  });
+  m.rituales = m.rituales.filter(function(r){ return r.qty > 0; });
+  var nueva = {
+    id:uid(), evId:m.evId, nombre:nom, mesa:m.mesa, tel:'', obs:'',
+    rituales:mov,
+    adicionales:D.menu.adicionales.map(function(a){ return {id:a.id, qty:0}; }),
+    pago:m.pago||'', tipo:m.tipo||'insitu', activa:true, cerrada:false,
+    divididaDe:m.id,
+    hora:new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})
+  };
+  D.mesas.push(nueva);
+  // Primero la nueva y después la original: si se corta el internet entre las dos, nunca se pierden platos
+  pushMesa(nueva); pushMesa(m);
+  cerrarModal('m-dividir'); cerrarModal('m-cuenta');
+  toast('Cuenta separada: '+nom+' — Mesa '+m.mesa,'ok');
+  refrescarPagina();
 }
 
 function selPagoCuenta(tipo) {
@@ -1412,16 +1658,15 @@ function eliminarRes(id) {
 function renderLogistica() {
   var ev=getEv(), cupos=ev?ev.cupos:90;
   var ocp=cuposOcupados();
-  var libres=Math.max(0,cupos-ocp.total);
-  var cEf=0,cTr=0;
-  getMesas().forEach(function(m){var t=totalMesa(m);if(m.pago==='efectivo')cEf+=t;else if(m.pago==='transferencia')cTr+=t;});
-  getRes().filter(function(r){return r.estado==='confirmada';}).forEach(function(r){var t=totalRit(r);if(r.pago==='efectivo')cEf+=t;else if(r.pago==='transferencia')cTr+=t;});
+  var libres=Math.max(0,cupos-ocp.total-ocp.rp);
+  var caja=calcCaja(getMesas());
   var pend=getRes().filter(function(r){return r.estado==='pendiente';});
   document.getElementById('log-stats').innerHTML=
     '<div class="stat"><div class="stat-n">'+ocp.total+'</div><div class="stat-l">Cupos ocupados</div></div>'+
     '<div class="stat"><div class="stat-n">'+libres+'</div><div class="stat-l">Cupos libres</div></div>'+
     '<div class="stat"><div class="stat-n">'+ocp.rp+'</div><div class="stat-l">Reservas pendientes</div></div>'+
-    '<div class="stat"><div class="stat-n" style="font-size:18px">'+peso(cEf+cTr)+'</div><div class="stat-l">Total caja</div></div>';
+    '<div class="stat"><div class="stat-n" style="font-size:18px;color:#4fc99e">'+peso(caja.cobrado)+'</div><div class="stat-l">Cobrado</div></div>'+
+    '<div class="stat"><div class="stat-n" style="font-size:18px;color:#F28C28">'+peso(caja.pend)+'</div><div class="stat-l">Por cobrar</div></div>';
   document.getElementById('log-cuerpo').innerHTML=
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">⏳ Reservas sin confirmar</div>'+
     (!pend.length?'<div class="alert alert-ok">✅ Todas las reservas han llegado</div>':
@@ -1430,16 +1675,18 @@ function renderLogistica() {
     '</tbody></table></div>')+
     '</div>'+
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px">💰 Caja total</div>'+
-    '<div class="cr"><span>💵 Efectivo</span><span style="color:#4fc99e;font-weight:700;font-size:16px">'+peso(cEf)+'</span></div>'+
-    '<div class="cr"><span>📲 Transferencia electrónica</span><span style="color:#E85F1A;font-weight:700;font-size:16px">'+peso(cTr)+'</span></div>'+
-    '<div class="ct"><span>TOTAL GENERAL</span><span>'+peso(cEf+cTr)+'</span></div></div>';
+    '<div class="cr"><span>💵 Efectivo</span><span style="color:#4fc99e;font-weight:700;font-size:16px">'+peso(caja.ef)+'</span></div>'+
+    '<div class="cr"><span>📲 Transferencia electrónica</span><span style="color:#E85F1A;font-weight:700;font-size:16px">'+peso(caja.tr)+'</span></div>'+
+    '<div class="ct"><span>COBRADO</span><span>'+peso(caja.cobrado)+'</span></div>'+
+    '<div class="cr"><span>⏳ Por cobrar ('+caja.nAb+' abiertas)</span><span style="color:#F28C28;font-weight:700;font-size:16px">'+peso(caja.pend)+'</span></div></div>'+
+    htmlCuentasAbiertas();
 }
 
 // ════════ EVENTOS ════════
 function renderEventos() {
   document.getElementById('ev-lista').innerHTML=D.eventos.map(function(ev){
     var link='https://a-brasas.github.io/ABRASAS/?ev='+ev.id;
-    var cnt=D.mesas.filter(function(m){return m.evId===ev.id&&m.activa;}).length+D.reservas.filter(function(r){return r.evId===ev.id&&r.estado==='confirmada';}).length;
+    var cnt=platosEvento(ev.id);
     return '<div class="card">'+
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'+
       '<div><div style="font-size:18px;font-weight:700;color:'+(ev.activo?'#E85F1A':'#C9C9C9')+'">'+ev.nombre+'</div>'+
@@ -1493,13 +1740,11 @@ function exportarReporte(evId) {
   var ev=D.eventos.find(function(e){return e.id===evId;})||{};
   var mesas=D.mesas.filter(function(m){return m.evId===evId;});
   var reservas=D.reservas.filter(function(r){return r.evId===evId;});
-  var cEf=0,cTr=0;
-  mesas.forEach(function(m){var t=totalMesa(m);if(m.pago==='efectivo')cEf+=t;else if(m.pago==='transferencia')cTr+=t;});
-  reservas.filter(function(r){return r.estado==='confirmada';}).forEach(function(r){var t=totalRit(r);if(r.pago==='efectivo')cEf+=t;else if(r.pago==='transferencia')cTr+=t;});
+  var cj=calcCaja(mesas), cEf=cj.ef, cTr=cj.tr;
   var html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte '+ev.nombre+'</title><style>body{font-family:Arial;padding:30px;color:#222;}h1{color:#E85F1A;}h2{color:#8A5632;margin-top:24px;}table{width:100%;border-collapse:collapse;margin-top:8px;}th{background:#0A0A0A;color:#E85F1A;padding:8px 12px;text-align:left;font-size:12px;}td{padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;}.res{background:#f9f5f0;border-radius:8px;padding:16px;margin:16px 0;}.rfl{display:flex;justify-content:space-between;padding:4px 0;font-size:14px;}.total{font-size:22px;font-weight:700;color:#E85F1A;}</style></head><body>'+
     '<h1>🔥 A-BRASAS — Amigos & Parrilla</h1>'+
     '<h2>'+ev.nombre+'</h2><p>📅 '+(ev.fecha||'—')+' · 📍 '+(ev.lugar||'—')+' · Generado: '+new Date().toLocaleString('es-CO')+'</p>'+
-    '<div class="res"><div class="rfl"><span>💵 Efectivo</span><strong>'+peso(cEf)+'</strong></div><div class="rfl"><span>📲 Transferencia</span><strong>'+peso(cTr)+'</strong></div><div class="rfl"><span class="total">TOTAL CAJA</span><strong class="total">'+peso(cEf+cTr)+'</strong></div></div>'+
+    '<div class="res"><div class="rfl"><span>💵 Efectivo</span><strong>'+peso(cEf)+'</strong></div><div class="rfl"><span>📲 Transferencia</span><strong>'+peso(cTr)+'</strong></div><div class="rfl"><span class="total">TOTAL COBRADO</span><strong class="total">'+peso(cj.cobrado)+'</strong></div><div class="rfl"><span>⏳ Por cobrar ('+cj.nAb+' cuentas abiertas)</span><strong>'+peso(cj.pend)+'</strong></div><div class="rfl"><span>Total vendido</span><strong>'+peso(cj.vendido)+'</strong></div></div>'+
     '<h2>Mesas ('+mesas.length+')</h2><table><thead><tr><th>Mesa</th><th>Nombre</th><th>Rituales</th><th>Adicionales</th><th>Pago</th><th>Total</th></tr></thead><tbody>'+
     mesas.map(function(m){return'<tr><td>'+m.mesa+'</td><td>'+m.nombre+'</td><td>'+ritDesc(m.rituales)+'</td><td>'+peso(totalAd(m))+'</td><td>'+(m.pago||'—')+'</td><td><strong>'+peso(totalMesa(m))+'</strong></td></tr>';}).join('')+
     '</tbody></table>'+
@@ -1530,7 +1775,8 @@ function renderMenu() {
         '<div class="fg"><label>Guarnición</label><input type="text" class="fi" value="'+r.guarnicion+'" onchange="uR('+i+',\'guarnicion\',this.value)"></div>'+
         '<div class="fg"><label>Bebida</label><input type="text" class="fi" value="'+r.bebida+'" onchange="uR('+i+',\'bebida\',this.value)"></div>'+
         '<div class="fg"><label>Precio</label><input type="number" class="fi" value="'+r.precio+'" onchange="uR('+i+',\'precio\',parseInt(this.value))"></div>'+
-        '</div></div>';
+        '<div class="fg"><label>Platos disponibles (este evento)</label><input type="number" min="0" class="fi" placeholder="Sin límite" value="'+(stockDe(r.id)===null?'':stockDe(r.id))+'" onchange="uS(\''+r.id+'\',this.value)"></div>'+
+        '</div>'+lineaStock(r.id)+'</div>';
     }).join('')+'</div>'+
     '<div class="card"><div style="font-size:14px;font-weight:700;color:#C17F4E;margin-bottom:12px;display:flex;justify-content:space-between">🍺 Adicionales <button class="btn btn-p btn-sm" onclick="addA()">+ Agregar</button></div>'+
     D.menu.adicionales.map(function(a,i){
@@ -1542,6 +1788,23 @@ function renderMenu() {
     }).join('')+'</div>';
 }
 function menuCambio(){encolar({t:'cfg',clave:'menu'});}
+// Platos disponibles de un ritual: se define por EVENTO (cada parrilla puede tener cantidades distintas)
+function uS(rid, v) {
+  var ev = getEv(); if(!ev) return;
+  if(!ev.stock) ev.stock = {};
+  v = String(v).trim();
+  if(v === '') delete ev.stock[rid];
+  else ev.stock[rid] = Math.max(0, parseInt(v) || 0);
+  encolar({t:'cfg', clave:'eventos'});
+  renderMenu();
+}
+function lineaStock(rid) {
+  var s = stockDe(rid);
+  if(s === null) return '<div style="font-size:11px;color:#666;margin-top:2px">Sin tope definido: no se controla la disponibilidad.</div>';
+  var res = resumenPlatos(), p = res.porR[rid] || {vend:0, pend:0};
+  var disp = s - p.vend - p.pend, st = estadoRitual(disp);
+  return '<div style="font-size:12px;margin-top:2px;color:#888">Vendidos <b style="color:#C9C9C9">'+p.vend+'</b> · Reservados <b style="color:#C9C9C9">'+p.pend+'</b> · <b style="color:'+st.col+'">'+st.txt+'</b></div>';
+}
 function uR(i,f,v){D.menu.rituales[i][f]=v;menuCambio();}
 function uA(i,f,v){D.menu.adicionales[i][f]=v;menuCambio();}
 function addRit(){D.menu.rituales.push({id:uid(),nombre:'Nuevo Ritual',principal:'',entrada:'',guarnicion:'',bebida:'',precio:0});menuCambio();renderMenu();}
