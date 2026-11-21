@@ -499,7 +499,7 @@ var D = {
     ]
   },
   pines: {admin:'1234',logistica:'5555',anfitrion:'1111'},
-  gasUrl: 'https://script.google.com/macros/s/AKfycbwDbK-SSa_EretEnrNHqg3ee1wgGQjYJrwxB6Wz2JkCRqULQ5mynBIaCOFNbR5FkxI/exec',
+  gasUrl: 'https://script.google.com/macros/s/AKfycbx1rNS0kdUbzYdspApd2sz8cp9nIEn_MAZmwRx1DvLcfF_HdDOI6994TB9Fo6GbFPUZWQ/exec',
   cola: [],          // cambios pendientes de enviar al servidor (se guardan en el celular)
   cfgVisto: {},      // última versión de menú/eventos que este celular conoce del servidor
   activoVisto: null, // último evento "activo" que este celular conoce
@@ -666,7 +666,7 @@ function guardar() {
 function cargar() {
   try {
     var d = JSON.parse(localStorage.getItem('ab6') || '{}');
-    if(d.gasUrl) D.gasUrl = d.gasUrl;
+    if(d.gasUrl && d.gasUrl.indexOf('AKfycbwDbK-SSa_EretEnrNHqg3ee1wgGQjYJrwxB6Wz2JkCRqULQ5mynBIaCOFNbR5FkxI')<0) D.gasUrl = d.gasUrl;
     if(d.evId) D.evId = d.evId;
     if(d.eventos) D.eventos = d.eventos;
     if(d.mesas) D.mesas = d.mesas;
