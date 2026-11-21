@@ -506,6 +506,17 @@ var D = {
   publico: false     // true cuando se abre el link público de reservas
 };
 
+var MENU_FABRICA = JSON.stringify(D.menu);   // el menú tal como viene de fábrica
+
+// ¿Este dispositivo tiene datos REALES o solo lo que la app crea sola al abrirse por primera vez?
+// Solo un dispositivo con datos reales puede "sembrar" el servidor. Así un celular recién abierto
+// (evento por defecto "Parrilla Laureles #1") jamás pisa los eventos y el menú reales.
+function eventosPersonalizados() {
+  var e = D.eventos;
+  return !(e.length === 1 && e[0].nombre === 'Parrilla Laureles #1' && Number(e[0].cupos) === 90);
+}
+function menuPersonalizado() { return JSON.stringify(D.menu) !== MENU_FABRICA; }
+
 var rolSeleccionado = null;
 var pagoSeleccionado = null;
 var qtysRitual = {};
@@ -781,6 +792,7 @@ var enviando = false;
 var traendo = false;
 var fallos = 0;        // fallos seguidos al enviar (para el espaciado de reintentos)
 var ultimoError = '';
+var servidorViejo = false;   // el Apps Script publicado no es la versión nueva
 var seq = 0;           // sube con cada cambio local o envío confirmado: sirve para
                        // descartar una lectura del servidor que quedó "vieja"
 
@@ -866,20 +878,40 @@ function construirPeticion(op) {
     return {url: urlBase('saveConfig',
       '&clave=' + op.clave +
       '&data=' + encodeURIComponent(JSON.stringify(valor)) +
-      (op.t === 'seed' ? '&soloSiNoExiste=1' : ''))};
+      (op.t === 'seed' ? '&soloSiNoExiste=1' : '&base=' + encodeURIComponent(D.cfgVisto[op.clave] || '')))};
   }
   return null;
+}
+
+// Un cambio de menú/eventos NO se envía si este dispositivo nunca ha recibido la versión del servidor
+// y además solo tiene datos de fábrica: primero debe recibir los datos reales (los adopta al sincronizar).
+function puedeEnviar(op) {
+  if((op.hasta || 0) > Date.now()) return false;
+  if((op.t === 'cfg' || op.t === 'seed') && D.cfgVisto[op.clave] === undefined && !eventosPersonalizados()) return false;
+  return true;
 }
 
 function procesarCola() {
   if(!D.gasUrl || enviando) return;
   if(!D.cola.length) { actualizarIndicador(); return; }
-  var op = D.cola[0];
+  var op = D.cola.find(puedeEnviar);
+  if(!op) { actualizarIndicador(); return; }    // todo está en espera: se reintenta solo
   var c = construirPeticion(op);
   if(!c) { quitarOp(op); guardar(); procesarCola(); return; }
   enviando = true;
   actualizarIndicador();
   fetchJson(c.url, 20000).then(function(res) {
+    if(res && res.conflicto) {
+      // Otro dispositivo ya cambió esto: no se pisa. Se descarta el cambio local y se baja la versión del servidor.
+      quitarOp(op);
+      D.cfgVisto[op.clave] = '';
+      enviando = false; fallos = 0; ultimoError = ''; seq++;
+      guardar(); actualizarIndicador();
+      toast('Otro dispositivo ya había cambiado ' + (op.clave === 'menu' ? 'el menú' : 'los eventos') + '. Se cargó la versión más reciente.', 'w');
+      sincronizar(true);
+      procesarCola();
+      return;
+    }
     if(!res || !res.ok) {
       var er = new Error((res && res.error) || 'El servidor rechazó el cambio');
       er.deServidor = true;
@@ -887,9 +919,10 @@ function procesarCola() {
     }
     if((op.t === 'cfg' || op.t === 'seed') && res.updatedAt === undefined && res.creado === undefined) {
       var ev = new Error('El Apps Script del servidor está desactualizado');
-      ev.deServidor = true;
+      ev.viejo = true;
       throw ev;
     }
+    if(op.t === 'cfg' || op.t === 'seed') servidorViejo = false;
     // ✔ Confirmado por el servidor
     if(op.t === 'save' && c.obj) {
       if(res._v !== undefined) c.obj._v = res._v;
@@ -908,6 +941,15 @@ function procesarCola() {
   }).catch(function(e) {
     enviando = false;
     ultimoError = msgError(e);
+    if(e && e.viejo) {
+      // Servidor con el script viejo: NO se descarta el cambio (se conserva y se reintenta cada 30 s)
+      // y no frena a los demás cambios de la cola.
+      servidorViejo = true;
+      op.hasta = Date.now() + 30000;
+      actualizarIndicador();
+      programarReintento();
+      return;
+    }
     if(e && e.deServidor) {
       // El servidor respondió pero rechazó el cambio: tras 5 intentos se descarta
       // para que no trabe los demás cambios de la cola.
@@ -995,8 +1037,13 @@ function aplicarConfig(cfg) {
   var evAntes = D.evId, evCambio = false;
   ['menu', 'eventos'].forEach(function(k) {
     var pendiente = D.cola.some(function(o) { return (o.t === 'cfg' || o.t === 'seed') && o.clave === k; });
-    if(pendiente) return; // lo local pendiente gana
     var s = cfg && cfg[k];
+    var nunca = D.cfgVisto[k] === undefined;     // este dispositivo jamás ha recibido la versión del servidor
+    if(pendiente && nunca && s && s.valor) {
+      // Dispositivo nuevo con cambios sin enviar: primero se cargan los datos reales del servidor
+      D.cola = D.cola.filter(function(o) { return !((o.t === 'cfg' || o.t === 'seed') && o.clave === k); });
+      toast('Se cargaron el menú y los eventos reales desde el servidor.', 'w');
+    } else if(pendiente) return; // lo local pendiente gana
     if(s && s.valor) {
       if(s.updatedAt === D.cfgVisto[k]) return; // ya lo tenemos
       if(k === 'menu' && s.valor.rituales && s.valor.adicionales) {
@@ -1014,7 +1061,10 @@ function aplicarConfig(cfg) {
         }
       }
     } else if(cfg && !D.publico && D.rol === 'admin') {
-      // El servidor aún no tiene este dato: el administrador lo siembra con el suyo
+      // El servidor aún no tiene este dato: el administrador lo siembra con el suyo,
+      // pero SOLO si este dispositivo tiene datos reales (nunca los de fábrica).
+      if(!eventosPersonalizados()) return;
+      if(k === 'menu' && !menuPersonalizado()) return;
       if(k === 'eventos') {
         var a = D.eventos.find(function(e) { return e.activo; });
         if(a) D.activoVisto = a.id;
@@ -1033,6 +1083,8 @@ function traerDelServidor() {
     if(!data || !data.ok) {
       throw new Error((data && data.error) || 'Respuesta inesperada del servidor');
     }
+    // El script nuevo siempre responde con "config"; el viejo no.
+    servidorViejo = (data.config === undefined);
     // Si algo cambió aquí mientras esperábamos, esta lectura puede estar vieja: se descarta
     if(seq !== seqIni) return {descartado: true};
     var foto = function() { return JSON.stringify([D.mesas, D.reservas, D.menu, D.eventos, D.evId]); };
@@ -1072,7 +1124,8 @@ function sincronizar(silencioso, alTerminar) {
       // Hubo cambios en curso o cambió el evento: se repite la lectura enseguida
       setTimeout(function() { sincronizar(silencioso); }, r.repetir ? 50 : 1500);
     } else if(!silencioso) {
-      toast('Datos actualizados ✓', 'ok');
+      if(servidorViejo) toast('El Apps Script del servidor NO está actualizado. Hay que publicar la nueva versión: Implementar → Gestionar implementaciones → ✏️ → Nueva versión.', 'w');
+      else toast('Datos actualizados ✓', 'ok');
     }
     fin();
   }).catch(function(e) {
@@ -1118,7 +1171,9 @@ function cargarConfigPublica() {
 function actualizarIndicador() {
   var n = D.cola.length, txt, cls;
   if(!D.gasUrl)                  { txt = '⚪ Sin sync';                    cls = ''; }
+  else if(servidorViejo)         { txt = '⚠️ Actualizar Apps Script' + (n ? ' · ' + n : ''); cls = 'sync-w'; }
   else if(n && (fallos || ultimoError)) { txt = '⚠️ Sin red · ' + n;      cls = 'sync-w'; }
+  else if(n && D.cola.every(function(o){ return !puedeEnviar(o); })) { txt = '⏳ En espera · ' + n; cls = 'sync-p'; }
   else if(n)                     { txt = '⏳ Enviando ' + n;               cls = 'sync-p'; }
   else if(ultimoError)           { txt = '⚠️ Sin conexión';                cls = 'sync-w'; }
   else                           { txt = '🟢 Al día';                      cls = 'sync-ok'; }
